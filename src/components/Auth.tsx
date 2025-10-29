@@ -37,7 +37,13 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
           .select()
           .single();
 
-        if (subError) throw subError;
+        if (subError) {
+          // Check if it's a table not found error
+          if (subError.code === '42P01' || subError.message?.includes('does not exist')) {
+            throw new Error('Database tables not set up. Please run migrations first. See SETUP_INSTRUCTIONS.md');
+          }
+          throw subError;
+        }
 
         // Create user profile
         const { error: profileError } = await supabase
@@ -52,7 +58,12 @@ const Auth: React.FC<AuthProps> = ({ onAuthSuccess }) => {
             children: [],
           });
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          if (profileError.code === '42P01' || profileError.message?.includes('does not exist')) {
+            throw new Error('Database tables not set up. Please run migrations first. See SETUP_INSTRUCTIONS.md');
+          }
+          throw profileError;
+        }
 
         onAuthSuccess();
       } else {

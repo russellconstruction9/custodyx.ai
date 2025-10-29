@@ -18,16 +18,30 @@ export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
 
 // Helper to get current user's subscription ID
 export const getUserSubscriptionId = async (): Promise<string | null> => {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return null;
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return null;
 
-  const { data } = await supabase
-    .from('user_profiles')
-    .select('subscription_id')
-    .eq('id', user.id)
-    .single();
+    const { data, error } = await supabase
+      .from('user_profiles')
+      .select('subscription_id')
+      .eq('id', user.id)
+      .single();
 
-  return data?.subscription_id || null;
+    if (error) {
+      // Table might not exist yet - that's okay
+      if (error.code === '42P01' || error.message?.includes('does not exist')) {
+        console.warn('user_profiles table not found. Run migrations first.');
+        return null;
+      }
+      throw error;
+    }
+
+    return data?.subscription_id || null;
+  } catch (error) {
+    console.error('Error getting subscription ID:', error);
+    return null;
+  }
 };
 
 // Helper to check if user is primary account holder

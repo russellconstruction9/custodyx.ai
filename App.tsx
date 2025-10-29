@@ -14,10 +14,10 @@ import Dashboard from './components/Dashboard';
 import LandingPage from './components/LandingPage';
 import AgentChat from './components/AgentChat';
 import Messaging from './components/Messaging';
-import Auth from './components/Auth';
+import Auth from './src/components/Auth';
 import { Report, UserProfile as UserProfileType, StoredDocument, View, IncidentTemplate, CoParentMessage } from './types';
 import { SparklesIcon } from './components/icons';
-import { supabase, getUserSubscriptionId } from './lib/supabase';
+import { supabase, getUserSubscriptionId } from './src/lib/supabase';
 
 const App: React.FC = () => {
     const [session, setSession] = useState<any>(null);
@@ -65,7 +65,10 @@ const App: React.FC = () => {
         const loadData = async () => {
             try {
                 const subscriptionId = await getUserSubscriptionId();
-                if (!subscriptionId) return;
+                if (!subscriptionId) {
+                    // No subscription yet - user just signed up, will be created on profile save
+                    return;
+                }
 
                 // Load user profile
                 const { data: profile } = await supabase
@@ -180,8 +183,12 @@ const App: React.FC = () => {
                 return () => {
                     channel.unsubscribe();
                 };
-            } catch (error) {
+            } catch (error: any) {
                 console.error('Error loading data:', error);
+                // If tables don't exist yet, that's okay - migrations need to be run
+                if (error?.message?.includes('does not exist') || error?.code === '42P01') {
+                    console.warn('Database tables not found. Please run migrations first.');
+                }
             }
         };
 
