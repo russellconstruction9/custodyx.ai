@@ -1,12 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { Database } from '../types/database';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || 'https://xidaoszvrdgttvgrntfe.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY || '';
-
-if (!supabaseAnonKey) {
-  console.error('Missing VITE_SUPABASE_ANON_KEY environment variable');
-}
+const supabaseUrl = 'https://xidaoszvrdgttvgrntfe.supabase.co';
+const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhpZGFvc3p2cmRndHR2Z3JudGZlIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjE3MDYxODAsImV4cCI6MjA3NzI4MjE4MH0.Fr-ju7Mugeit46mQ7WSywFJHs7jbGSABSUC4SfVMLvM';
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
   auth: {
