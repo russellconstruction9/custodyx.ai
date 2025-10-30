@@ -1,21 +1,30 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, Suspense, lazy } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
-import IncidentTimeline from './components/IncidentTimeline';
-import ChatInterface from './components/ChatInterface';
-import PatternAnalysis from './components/PatternAnalysis';
-import DeepAnalysis from './components/BehavioralInsights';
-import LegalAssistant from './components/LegalAssistant';
-import UserProfile from './components/UserProfile';
-import DocumentLibrary from './components/DocumentLibrary';
-import CalendarView from './components/CalendarView';
-import EvidencePackageBuilder from './components/EvidencePackageBuilder';
-import Dashboard from './components/Dashboard';
 import LandingPage from './components/LandingPage';
-import AgentChat from './components/AgentChat';
-import Messaging from './components/Messaging';
 import { Report, UserProfile as UserProfileType, StoredDocument, View, IncidentTemplate, CoParentMessage } from './types';
 import { SparklesIcon } from './components/icons';
+
+// Lazy load view-based components for code splitting
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const IncidentTimeline = lazy(() => import('./components/IncidentTimeline'));
+const ChatInterface = lazy(() => import('./components/ChatInterface'));
+const PatternAnalysis = lazy(() => import('./components/PatternAnalysis'));
+const DeepAnalysis = lazy(() => import('./components/BehavioralInsights'));
+const LegalAssistant = lazy(() => import('./components/LegalAssistant'));
+const UserProfile = lazy(() => import('./components/UserProfile'));
+const DocumentLibrary = lazy(() => import('./components/DocumentLibrary'));
+const CalendarView = lazy(() => import('./components/CalendarView'));
+const EvidencePackageBuilder = lazy(() => import('./components/EvidencePackageBuilder'));
+const AgentChat = lazy(() => import('./components/AgentChat'));
+const Messaging = lazy(() => import('./components/Messaging'));
+
+// Loading fallback component
+const LoadingFallback = () => (
+    <div className="flex items-center justify-center min-h-[400px]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+    </div>
+);
 
 const App: React.FC = () => {
     const [view, setView] = useState<View>('dashboard');
@@ -263,82 +272,109 @@ const App: React.FC = () => {
             selectedReportIds,
             onToggleReportSelection: handleToggleReportSelection,
         };
+        
+        const renderWithSuspense = (component: React.ReactElement) => (
+            <Suspense fallback={<LoadingFallback />}>
+                {component}
+            </Suspense>
+        );
+        
         switch (view) {
             case 'dashboard':
-                return <Dashboard 
-                            userProfile={userProfile}
-                            reports={reports}
-                            onViewChange={handleViewChange}
-                            onAnalyzeIncident={handleAnalyzeIncident}
-                        />;
+                return renderWithSuspense(
+                    <Dashboard 
+                        userProfile={userProfile}
+                        reports={reports}
+                        onViewChange={handleViewChange}
+                        onAnalyzeIncident={handleAnalyzeIncident}
+                    />
+                );
             case 'new_report':
-                return <ChatInterface 
-                            onReportGenerated={handleReportGenerated} 
-                            userProfile={userProfile}
-                            initialDate={newReportDate} 
-                            templates={incidentTemplates}
-                            onAddTemplate={handleAddTemplate}
-                            onDeleteTemplate={handleDeleteTemplate}
-                            onNavToTimeline={() => handleViewChange('timeline')}
-                        />;
+                return renderWithSuspense(
+                    <ChatInterface 
+                        onReportGenerated={handleReportGenerated} 
+                        userProfile={userProfile}
+                        initialDate={newReportDate} 
+                        templates={incidentTemplates}
+                        onAddTemplate={handleAddTemplate}
+                        onDeleteTemplate={handleDeleteTemplate}
+                        onNavToTimeline={() => handleViewChange('timeline')}
+                    />
+                );
             case 'messaging':
-                return <Messaging 
-                            messages={messages}
-                            onSendMessage={handleSendMessage}
-                            userProfile={userProfile}
-                        />;
+                return renderWithSuspense(
+                    <Messaging 
+                        messages={messages}
+                        onSendMessage={handleSendMessage}
+                        userProfile={userProfile}
+                    />
+                );
             case 'patterns':
-                return <PatternAnalysis reports={reports} />;
+                return renderWithSuspense(
+                    <PatternAnalysis reports={reports} />
+                );
             case 'insights':
-                return <DeepAnalysis 
-                            reports={reports} 
-                            userProfile={userProfile}
-                            activeInsightContext={activeInsightContext}
-                            onBackToTimeline={handleBackToTimeline}
-                            onGenerateDraft={handleGenerateDraftFromInsight}
-                            onAddDocument={handleAddDocument}
-                        />;
+                return renderWithSuspense(
+                    <DeepAnalysis 
+                        reports={reports} 
+                        userProfile={userProfile}
+                        activeInsightContext={activeInsightContext}
+                        onBackToTimeline={handleBackToTimeline}
+                        onGenerateDraft={handleGenerateDraftFromInsight}
+                        onAddDocument={handleAddDocument}
+                    />
+                );
             case 'documents':
-                return <DocumentLibrary 
-                            documents={documents}
-                            onAddDocument={handleAddDocument}
-                            onDeleteDocument={handleDeleteDocument}
-                        />;
+                return renderWithSuspense(
+                    <DocumentLibrary 
+                        documents={documents}
+                        onAddDocument={handleAddDocument}
+                        onDeleteDocument={handleDeleteDocument}
+                    />
+                );
             case 'assistant':
-                return <LegalAssistant 
-                            reports={reports} 
-                            documents={documents}
-                            userProfile={userProfile}
-                            activeReportContext={activeReportContext}
-                            clearActiveReportContext={() => setActiveReportContext(null)}
-                            initialQuery={initialLegalQuery}
-                            clearInitialQuery={() => setInitialLegalQuery(null)}
-                            activeAnalysisContext={activeAnalysisContext}
-                            clearActiveAnalysisContext={() => setActiveAnalysisContext(null)}
-                            onAddDocument={handleAddDocument}
-                        />;
+                return renderWithSuspense(
+                    <LegalAssistant 
+                        reports={reports} 
+                        documents={documents}
+                        userProfile={userProfile}
+                        activeReportContext={activeReportContext}
+                        clearActiveReportContext={() => setActiveReportContext(null)}
+                        initialQuery={initialLegalQuery}
+                        clearInitialQuery={() => setInitialLegalQuery(null)}
+                        activeAnalysisContext={activeAnalysisContext}
+                        clearActiveAnalysisContext={() => setActiveAnalysisContext(null)}
+                        onAddDocument={handleAddDocument}
+                    />
+                );
             case 'profile':
-                return <UserProfile 
-                            onSave={handleProfileSave} 
-                            onCancel={() => handleViewChange('dashboard')}
-                            currentProfile={userProfile}
-                        />;
+                return renderWithSuspense(
+                    <UserProfile 
+                        onSave={handleProfileSave} 
+                        onCancel={() => handleViewChange('dashboard')}
+                        currentProfile={userProfile}
+                    />
+                );
             case 'calendar':
-                return <CalendarView 
-                            reports={reports}
-                            onDiscussIncident={handleDiscussIncident}
-                            onAnalyzeIncident={handleAnalyzeIncident}
-                            onDayClick={handleCalendarDayClick}
-                            {...selectionProps}
-                        />;
+                return renderWithSuspense(
+                    <CalendarView 
+                        reports={reports}
+                        onDiscussIncident={handleDiscussIncident}
+                        onAnalyzeIncident={handleAnalyzeIncident}
+                        onDayClick={handleCalendarDayClick}
+                        {...selectionProps}
+                    />
+                );
             case 'timeline':
             default:
-                return <IncidentTimeline 
-                            reports={reports} 
-                            onDiscussIncident={handleDiscussIncident}
-                            onAnalyzeIncident={handleAnalyzeIncident}
-                            {...selectionProps}
-                        />;
+                return renderWithSuspense(
+                    <IncidentTimeline 
+                        reports={reports} 
+                        onDiscussIncident={handleDiscussIncident}
+                        onAnalyzeIncident={handleAnalyzeIncident}
+                        {...selectionProps}
+                    />
+                );
         }
     };
     
@@ -364,12 +400,14 @@ const App: React.FC = () => {
     if (isInitialSetup) {
         return (
             <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-                 <UserProfile 
-                    onSave={handleProfileSave} 
-                    onCancel={() => setView('dashboard')} // Takes them back to landing page
-                    currentProfile={null}
-                    isInitialSetup={true}
-                />
+                <Suspense fallback={<LoadingFallback />}>
+                    <UserProfile 
+                        onSave={handleProfileSave} 
+                        onCancel={() => setView('dashboard')} // Takes them back to landing page
+                        currentProfile={null}
+                        isInitialSetup={true}
+                    />
+                </Suspense>
             </div>
         );
     }
@@ -420,27 +458,35 @@ const App: React.FC = () => {
                     </button>
                 </div>
             )}
-            <AgentChat
-                isOpen={isAgentOpen}
-                onClose={() => setIsAgentOpen(false)}
-                onNavigate={(newView) => {
-                    handleViewChange(newView);
-                    setIsAgentOpen(false); // Close agent after navigation
-                }}
-                userProfile={userProfile}
-            />
-            <EvidencePackageBuilder
-                isOpen={isEvidenceBuilderOpen}
-                onClose={() => setIsEvidenceBuilderOpen(false)}
-                selectedReports={reports.filter(r => selectedReportIds.has(r.id))}
-                allDocuments={documents}
-                userProfile={userProfile}
-                onPackageCreated={() => {
-                    setIsEvidenceBuilderOpen(false);
-                    setSelectedReportIds(new Set());
-                }}
-                onAddDocument={handleAddDocument}
-            />
+            {isAgentOpen && (
+                <Suspense fallback={null}>
+                    <AgentChat
+                        isOpen={isAgentOpen}
+                        onClose={() => setIsAgentOpen(false)}
+                        onNavigate={(newView) => {
+                            handleViewChange(newView);
+                            setIsAgentOpen(false); // Close agent after navigation
+                        }}
+                        userProfile={userProfile}
+                    />
+                </Suspense>
+            )}
+            {isEvidenceBuilderOpen && (
+                <Suspense fallback={null}>
+                    <EvidencePackageBuilder
+                        isOpen={isEvidenceBuilderOpen}
+                        onClose={() => setIsEvidenceBuilderOpen(false)}
+                        selectedReports={reports.filter(r => selectedReportIds.has(r.id))}
+                        allDocuments={documents}
+                        userProfile={userProfile}
+                        onPackageCreated={() => {
+                            setIsEvidenceBuilderOpen(false);
+                            setSelectedReportIds(new Set());
+                        }}
+                        onAddDocument={handleAddDocument}
+                    />
+                </Suspense>
+            )}
         </div>
     );
 };
