@@ -64,3 +64,19 @@ Make sure to set the following environment variable in Vercel:
 - `GEMINI_API_KEY` - Your Google Gemini API key
 
 The app will automatically use these environment variables in production builds.
+
+## Supabase (optional)
+
+If you want to use Supabase for database, auth, or storage, add the following environment variables to your local `.env.local` (do NOT commit secrets):
+
+```
+VITE_SUPABASE_URL=https://your-project-id.supabase.co
+VITE_SUPABASE_ANON_KEY=your-public-anon-key
+```
+
+Notes:
+- Vite requires client-facing env vars to start with the `VITE_` prefix.
+- Example usage in the app: `import { supabase } from './services/supabaseClient';`
+- Install the SDK with `npm install @supabase/supabase-js`.
+
+See `.env.example` in the repo for placeholders.
