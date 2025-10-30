@@ -14,22 +14,61 @@ import Dashboard from './components/Dashboard';
 import LandingPage from './components/LandingPage';
 import AgentChat from './components/AgentChat';
 import Messaging from './components/Messaging';
-import Auth from './src/components/Auth';
 import { Report, UserProfile as UserProfileType, StoredDocument, View, IncidentTemplate, CoParentMessage } from './types';
 import { SparklesIcon } from './components/icons';
-import { supabase, getUserSubscriptionId } from './src/lib/supabase';
 
 const App: React.FC = () => {
-    const [session, setSession] = useState<any>(null);
-    const [loading, setLoading] = useState(true);
     const [view, setView] = useState<View>('dashboard');
     
-    const [reports, setReports] = useState<Report[]>([]);
+    const [reports, setReports] = useState<Report[]>(() => {
+        try {
+            const savedReports = localStorage.getItem('reports');
+            return savedReports ? JSON.parse(savedReports) : [];
+        } catch (error) {
+            console.error("Failed to load reports from localStorage", error);
+            return [];
+        }
+    });
     
-    const [documents, setDocuments] = useState<StoredDocument[]>([]);
-    const [userProfile, setUserProfile] = useState<UserProfileType | null>(null);
-    const [incidentTemplates, setIncidentTemplates] = useState<IncidentTemplate[]>([]);
-    const [messages, setMessages] = useState<CoParentMessage[]>([]);
+    const [documents, setDocuments] = useState<StoredDocument[]>(() => {
+        try {
+            const savedDocuments = localStorage.getItem('documents');
+            return savedDocuments ? JSON.parse(savedDocuments) : [];
+        } catch (error) {
+            console.error("Failed to load documents from localStorage", error);
+            return [];
+        }
+    });
+
+    const [userProfile, setUserProfile] = useState<UserProfileType | null>(() => {
+        try {
+            const savedProfile = localStorage.getItem('userProfile');
+            return savedProfile ? JSON.parse(savedProfile) : null;
+        } catch (error) {
+            console.error("Failed to load user profile from localStorage", error);
+            return null;
+        }
+    });
+
+    const [incidentTemplates, setIncidentTemplates] = useState<IncidentTemplate[]>(() => {
+        try {
+            const saved = localStorage.getItem('incidentTemplates');
+            return saved ? JSON.parse(saved) : [];
+        } catch (error) {
+            console.error("Failed to load incident templates from localStorage", error);
+            return [];
+        }
+    });
+
+    const [messages, setMessages] = useState<CoParentMessage[]>(() => {
+        try {
+            const savedMessages = localStorage.getItem('coParentingMessages');
+            return savedMessages ? JSON.parse(savedMessages) : [];
+        } catch (error) {
+            console.error("Failed to load messages from localStorage", error);
+            return [];
+        }
+    });
     
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isAgentOpen, setIsAgentOpen] = useState(false);
@@ -42,323 +81,110 @@ const App: React.FC = () => {
     const [newReportDate, setNewReportDate] = useState<Date | null>(null);
     const [isConfigError, setIsConfigError] = useState(false);
 
-    // Check auth session
     useEffect(() => {
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setLoading(false);
-        });
-
-        const {
-            data: { subscription },
-        } = supabase.auth.onAuthStateChange((_event, session) => {
-            setSession(session);
-        });
-
-        return () => subscription.unsubscribe();
+        if (!process.env.API_KEY) {
+            console.error("Configuration Error: API_KEY is not defined in the environment. AI features will be disabled.");
+            setIsConfigError(true);
+        }
     }, []);
 
-    // Load data from Supabase
+    // Save data to localStorage whenever it changes
     useEffect(() => {
-        if (!session?.user) return;
-
-        const loadData = async () => {
-            try {
-                const subscriptionId = await getUserSubscriptionId();
-                if (!subscriptionId) {
-                    // No subscription yet - user just signed up, will be created on profile save
-                    return;
-                }
-
-                // Load user profile
-                const { data: profile } = await supabase
-                    .from('user_profiles')
-                    .select('*')
-                    .eq('id', session.user.id)
-                    .single();
-
-                if (profile) {
-                    setUserProfile({
-                        name: profile.name,
-                        role: profile.role as 'Mother' | 'Father' | '',
-                        children: profile.children || [],
-                    });
-                }
-
-                // Load reports
-                const { data: reportsData } = await supabase
-                    .from('reports')
-                    .select('*')
-                    .eq('subscription_id', subscriptionId)
-                    .order('incident_date', { ascending: false });
-
-                if (reportsData) {
-                    setReports(reportsData.map(r => ({
-                        id: r.id,
-                        content: r.content,
-                        category: r.category as any,
-                        tags: r.tags,
-                        legalContext: r.legal_context || '',
-                        images: r.images,
-                        createdAt: r.incident_date,
-                    })));
-                }
-
-                // Load documents
-                const { data: docsData } = await supabase
-                    .from('documents')
-                    .select('*')
-                    .eq('subscription_id', subscriptionId);
-
-                if (docsData) {
-                    setDocuments(docsData.map(d => ({
-                        id: d.id,
-                        name: d.name,
-                        mimeType: d.mime_type,
-                        data: d.data,
-                        folder: d.folder as any,
-                        createdAt: d.created_at,
-                        structuredData: d.structured_data as any,
-                    })));
-                }
-
-                // Load templates
-                const { data: templatesData } = await supabase
-                    .from('incident_templates')
-                    .select('*')
-                    .eq('subscription_id', subscriptionId);
-
-                if (templatesData) {
-                    setIncidentTemplates(templatesData.map(t => ({
-                        id: t.id,
-                        title: t.title,
-                        content: t.content,
-                        category: t.category as any,
-                        tags: t.tags,
-                        legalContext: t.legal_context || '',
-                    })));
-                }
-
-                // Load messages
-                const { data: messagesData } = await supabase
-                    .from('messages')
-                    .select('*')
-                    .eq('subscription_id', subscriptionId)
-                    .order('created_at', { ascending: true });
-
-                if (messagesData) {
-                    setMessages(messagesData.map(m => ({
-                        id: m.id,
-                        text: m.text,
-                        senderId: m.sender_id === session.user.id ? 'user' : 'other_parent',
-                        timestamp: m.created_at,
-                    })));
-                }
-
-                // Subscribe to real-time updates
-                const channel = supabase
-                    .channel('db-changes')
-                    .on(
-                        'postgres_changes',
-                        {
-                            event: '*',
-                            schema: 'public',
-                            table: 'messages',
-                            filter: `subscription_id=eq.${subscriptionId}`,
-                        },
-                        (payload) => {
-                            if (payload.eventType === 'INSERT') {
-                                const newMessage = payload.new as any;
-                                setMessages(prev => [...prev, {
-                                    id: newMessage.id,
-                                    text: newMessage.text,
-                                    senderId: newMessage.sender_id === session.user.id ? 'user' : 'other_parent',
-                                    timestamp: newMessage.created_at,
-                                }]);
-                            }
-                        }
-                    )
-                    .subscribe();
-
-                return () => {
-                    channel.unsubscribe();
-                };
-            } catch (error: any) {
-                console.error('Error loading data:', error);
-                // If tables don't exist yet, that's okay - migrations need to be run
-                if (error?.message?.includes('does not exist') || error?.code === '42P01') {
-                    console.warn('Database tables not found. Please run migrations first.');
-                }
-            }
-        };
-
-        loadData();
-    }, [session]);
-
-    const handleProfileSave = async (profile: UserProfileType) => {
         try {
-            if (!session?.user) return;
-            
-            await supabase
-                .from('user_profiles')
-                .update({
-                    name: profile.name,
-                    role: profile.role,
-                    children: profile.children,
-                })
-                .eq('id', session.user.id);
-            
+            localStorage.setItem('reports', JSON.stringify(reports));
+        } catch (error) {
+            console.error("Failed to save reports to localStorage", error);
+        }
+    }, [reports]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('incidentTemplates', JSON.stringify(incidentTemplates));
+        } catch (error) {
+            console.error("Failed to save incident templates to localStorage", error);
+        }
+    }, [incidentTemplates]);
+
+    useEffect(() => {
+        try {
+            localStorage.setItem('coParentingMessages', JSON.stringify(messages));
+        } catch (error) {
+            console.error("Failed to save messages to localStorage", error);
+        }
+    }, [messages]);
+
+    const handleProfileSave = (profile: UserProfileType) => {
+        try {
+            localStorage.setItem('userProfile', JSON.stringify(profile));
             setUserProfile(profile);
             setView('dashboard');
         } catch (error) {
-            console.error("Failed to save user profile", error);
+            console.error("Failed to save user profile to localStorage", error);
         }
     };
 
-    const handleReportGenerated = async (newReport: Report) => {
-        try {
-            if (!session?.user) return;
-            
-            const subscriptionId = await getUserSubscriptionId();
-            if (!subscriptionId) return;
-
-            const { data, error } = await supabase
-                .from('reports')
-                .insert({
-                    subscription_id: subscriptionId,
-                    created_by: session.user.id,
-                    content: newReport.content,
-                    category: newReport.category,
-                    tags: newReport.tags,
-                    legal_context: newReport.legalContext,
-                    images: newReport.images,
-                    incident_date: newReport.createdAt,
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-            if (data) {
-                setReports(prev => [...prev, {
-                    ...newReport,
-                    id: data.id,
-                }]);
-            }
-            setNewReportDate(null);
-        } catch (error) {
-            console.error("Failed to save report", error);
-        }
+    const handleReportGenerated = (newReport: Report) => {
+        setReports(prev => [...prev, newReport]);
+        setNewReportDate(null); // Clear date after generation
     };
     
-    const handleAddDocument = useCallback(async (newDocument: StoredDocument) => {
-        try {
-            if (!session?.user) return;
-            
-            const subscriptionId = await getUserSubscriptionId();
-            if (!subscriptionId) return;
-
-            const { data, error } = await supabase
-                .from('documents')
-                .insert({
-                    subscription_id: subscriptionId,
-                    created_by: session.user.id,
-                    name: newDocument.name,
-                    mime_type: newDocument.mimeType,
-                    data: newDocument.data,
-                    folder: newDocument.folder,
-                    structured_data: newDocument.structuredData as any,
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-            if (data) {
-                setDocuments(prev => [...prev, {
-                    ...newDocument,
-                    id: data.id,
-                }]);
+    const handleAddDocument = useCallback((newDocument: StoredDocument) => {
+        setDocuments(prevDocuments => {
+            const updatedDocuments = [...prevDocuments, newDocument];
+            try {
+                localStorage.setItem('documents', JSON.stringify(updatedDocuments));
+            } catch (error) {
+                console.error("Failed to save documents to localStorage", error);
             }
-        } catch (error) {
-            console.error("Failed to save document", error);
-        }
-    }, [session]);
+            return updatedDocuments;
+        });
+    }, []);
 
-    const handleDeleteDocument = useCallback(async (documentId: string) => {
-        try {
-            await supabase
-                .from('documents')
-                .delete()
-                .eq('id', documentId);
-            
-            setDocuments(prev => prev.filter(doc => doc.id !== documentId));
-        } catch (error) {
-            console.error("Failed to delete document", error);
-        }
+    const handleDeleteDocument = useCallback((documentId: string) => {
+        setDocuments(prevDocuments => {
+            const updatedDocuments = prevDocuments.filter(doc => doc.id !== documentId);
+            try {
+                localStorage.setItem('documents', JSON.stringify(updatedDocuments));
+            } catch (error) {
+                console.error("Failed to save documents to localStorage", error);
+            }
+            return updatedDocuments;
+        });
     }, []);
     
-    const handleAddTemplate = useCallback(async (newTemplate: IncidentTemplate) => {
-        try {
-            if (!session?.user) return;
-            
-            const subscriptionId = await getUserSubscriptionId();
-            if (!subscriptionId) return;
-
-            const { data, error } = await supabase
-                .from('incident_templates')
-                .insert({
-                    subscription_id: subscriptionId,
-                    created_by: session.user.id,
-                    title: newTemplate.title,
-                    content: newTemplate.content,
-                    category: newTemplate.category,
-                    tags: newTemplate.tags,
-                    legal_context: newTemplate.legalContext,
-                })
-                .select()
-                .single();
-
-            if (error) throw error;
-            if (data) {
-                setIncidentTemplates(prev => [...prev, {
-                    ...newTemplate,
-                    id: data.id,
-                }]);
-            }
-        } catch (error) {
-            console.error("Failed to save template", error);
-        }
-    }, [session]);
-
-    const handleDeleteTemplate = useCallback(async (templateId: string) => {
-        try {
-            await supabase
-                .from('incident_templates')
-                .delete()
-                .eq('id', templateId);
-            
-            setIncidentTemplates(prev => prev.filter(t => t.id !== templateId));
-        } catch (error) {
-            console.error("Failed to delete template", error);
-        }
+    const handleAddTemplate = useCallback((newTemplate: IncidentTemplate) => {
+        setIncidentTemplates(prev => [...prev, newTemplate]);
     }, []);
 
-    const handleSendMessage = async (text: string) => {
-        try {
-            if (!session?.user) return;
-            
-            const subscriptionId = await getUserSubscriptionId();
-            if (!subscriptionId) return;
+    const handleDeleteTemplate = useCallback((templateId: string) => {
+        setIncidentTemplates(prev => prev.filter(t => t.id !== templateId));
+    }, []);
 
-            await supabase
-                .from('messages')
-                .insert({
-                    subscription_id: subscriptionId,
-                    sender_id: session.user.id,
-                    text,
-                });
-        } catch (error) {
-            console.error("Failed to send message", error);
-        }
+    const handleSendMessage = (text: string) => {
+        const userMessage: CoParentMessage = {
+            id: `msg_${Date.now()}`,
+            text,
+            senderId: 'user',
+            timestamp: new Date().toISOString(),
+        };
+        
+        // In a real app with Firebase, this would be a call to Firestore to add the message to a 'messages' collection.
+        // The other user's app would listen for changes to this collection to receive the message in real-time.
+        const updatedMessages = [...messages, userMessage];
+        setMessages(updatedMessages);
+    
+        // Simulate a response from the other parent for demonstration purposes.
+        setTimeout(() => {
+            const otherParentResponse: CoParentMessage = {
+                id: `msg_${Date.now() + 1}`,
+                text: `Received: "${text}". I will review this shortly.`,
+                senderId: 'other_parent',
+                timestamp: new Date().toISOString(),
+            };
+            // In a real app, this part would be replaced by a listener to the messages collection in Firestore,
+            // which would add new messages from the other parent to the state.
+            setMessages(prev => [...prev, otherParentResponse]);
+        }, 1500 + Math.random() * 1000); // Add a realistic delay
     };
 
     const handleViewChange = useCallback((newView: View) => {
@@ -516,21 +342,16 @@ const App: React.FC = () => {
         }
     };
     
-    // Show loading state
-    if (loading) {
+    if (isConfigError) {
         return (
-            <div className="min-h-screen bg-gray-100 flex items-center justify-center">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-950 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Loading...</p>
+            <div className="bg-red-50 min-h-screen flex items-center justify-center p-4 text-center">
+                <div className="bg-white p-8 rounded-lg shadow-lg border border-red-200 max-w-md">
+                    <h1 className="text-2xl font-bold text-red-800">Configuration Error</h1>
+                    <p className="mt-2 text-red-700">The application is not configured correctly, and AI services are unavailable.</p>
+                    <p className="mt-4 text-sm text-gray-600">Please contact the administrator to ensure the API key is correctly set up in the deployment environment.</p>
                 </div>
             </div>
         );
-    }
-
-    // Show auth if not logged in
-    if (!session) {
-        return <Auth onAuthSuccess={() => setLoading(true)} />;
     }
 
     const isUserOnboarded = !!userProfile;
@@ -545,7 +366,7 @@ const App: React.FC = () => {
             <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4">
                  <UserProfile 
                     onSave={handleProfileSave} 
-                    onCancel={() => setView('dashboard')}
+                    onCancel={() => setView('dashboard')} // Takes them back to landing page
                     currentProfile={null}
                     isInitialSetup={true}
                 />
