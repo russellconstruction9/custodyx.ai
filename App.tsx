@@ -91,8 +91,10 @@ const App: React.FC = () => {
     const [isConfigError, setIsConfigError] = useState(false);
 
     useEffect(() => {
-        if (!process.env.API_KEY) {
-            console.error("Configuration Error: API_KEY is not defined in the environment. AI features will be disabled.");
+        // Check for API key - it should be available via vite define
+        const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+        if (!apiKey || apiKey === 'undefined' || apiKey === '') {
+            console.error("Configuration Error: GEMINI_API_KEY is not defined in the environment. AI features will be disabled.");
             setIsConfigError(true);
         }
     }, []);
@@ -384,7 +386,8 @@ const App: React.FC = () => {
                 <div className="bg-white p-8 rounded-lg shadow-lg border border-red-200 max-w-md">
                     <h1 className="text-2xl font-bold text-red-800">Configuration Error</h1>
                     <p className="mt-2 text-red-700">The application is not configured correctly, and AI services are unavailable.</p>
-                    <p className="mt-4 text-sm text-gray-600">Please contact the administrator to ensure the API key is correctly set up in the deployment environment.</p>
+                    <p className="mt-4 text-sm text-gray-600">Please ensure the <code className="px-1 py-0.5 bg-gray-100 rounded">GEMINI_API_KEY</code> environment variable is set in your Vercel project settings.</p>
+                    <p className="mt-2 text-xs text-gray-500">Go to: Project Settings → Environment Variables → Add <code className="px-1 py-0.5 bg-gray-100 rounded">GEMINI_API_KEY</code></p>
                 </div>
             </div>
         );
