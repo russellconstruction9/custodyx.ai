@@ -34,6 +34,10 @@ export const getUserSubscriptionId = async (): Promise<string | null> => {
         console.warn('user_profiles table not found. Run migrations first.');
         return null;
       }
+      // PGRST116 means no rows returned - user hasn't created profile yet
+      if (error.code === 'PGRST116') {
+        return null;
+      }
       throw error;
     }
 
