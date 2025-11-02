@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "db:migrate": "ts-node scripts/migrate.ts",
+    "db:setup": "npm run db:migrate"
   },
   "dependencies": {
     "@google/genai": "^1.28.0",
@@ -20,8 +22,10 @@
     "recharts": "^2.13.0"
   },
   "devDependencies": {
+    "@stackframe/stack": "^2.8.48",
     "@types/node": "^22.14.0",
     "@vitejs/plugin-react": "^5.0.0",
+    "ts-node": "^10.9.2",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }
