@@ -1,7 +1,8 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Report, UserProfile, StoredDocument, StructuredLegalDocument, DocumentFolder } from '../types';
+import { Report, UserProfile, StoredDocument, StructuredLegalDocument, DocumentFolder, SubscriptionTier } from '../types';
 import { getLegalAssistantResponse, getInitialLegalAnalysis, analyzeDocument, redraftDocument } from '../services/geminiService';
-import { PaperAirplaneIcon, SparklesIcon, UserCircleIcon, DocumentTextIcon, LightBulbIcon, XMarkIcon } from './icons';
+// FIX: Imported the missing ScaleIcon component.
+import { PaperAirplaneIcon, SparklesIcon, UserCircleIcon, DocumentTextIcon, LightBulbIcon, XMarkIcon, ScaleIcon } from './icons';
 import MotionPreviewModal from './MotionPreviewModal';
 import ReactMarkdown from 'react-markdown';
 
@@ -32,6 +33,12 @@ interface LegalAssistantProps {
     activeAnalysisContext: string | null;
     clearActiveAnalysisContext: () => void;
     onAddDocument: (document: StoredDocument) => void;
+    onPromptConsultation: () => void;
+    // Token & Subscription Props
+    subscriptionTier: SubscriptionTier;
+    hasSufficientTokens: () => boolean;
+    handleTokensUsed: (count: number) => void;
+    promptUpgrade: (featureName: string) => void;
 }
 
 const fileToBase64 = (file: File): Promise<string> =>
@@ -58,7 +65,12 @@ const documentToPlainText = (doc: StructuredLegalDocument | null): string => {
     return text;
 };
 
-const LegalAssistant: React.FC<LegalAssistantProps> = ({ reports, documents, userProfile, activeReportContext, clearActiveReportContext, initialQuery, clearInitialQuery, activeAnalysisContext, clearActiveAnalysisContext, onAddDocument }) => {
+const LegalAssistant: React.FC<LegalAssistantProps> = ({ 
+    reports, documents, userProfile, activeReportContext, clearActiveReportContext, 
+    initialQuery, clearInitialQuery, activeAnalysisContext, clearActiveAnalysisContext, onAddDocument,
+    onPromptConsultation,
+    hasSufficientTokens, handleTokensUsed, promptUpgrade
+}) => {
     const [messages, setMessages] = useState<LegalMessage[]>(() => {
         const initialContent = reports.length > 0
             ? "Hello, you can ask me questions about your logged incidents or uploaded documents. For example: 'When did communication issues occur?' or 'Draft a motion about the missed visitation.'"
@@ -74,32 +86,35 @@ const LegalAssistant: React.FC<LegalAssistantProps> = ({ reports, documents, use
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     useEffect(() => {
-        if (isLoading) return; // Add guard to prevent re-entrant calls
+        if (isLoading) return;
 
         const sendInitialQuery = async (query: string) => {
+            if (!hasSufficientTokens()) {
+                promptUpgrade("Legal Assistant");
+                clearInitialQuery();
+                clearActiveAnalysisContext();
+                return;
+            }
             const userMessage: LegalMessage = { role: 'user', content: query };
             setMessages(prev => [...prev, userMessage]);
             setIsLoading(true);
 
             try {
-                const response = await getLegalAssistantResponse(reports, documents, query, userProfile, activeAnalysisContext);
-                const modelMessage: LegalMessage = { role: 'model', content: response.content, sources: response.sources };
+                const { response, tokensUsed } = await getLegalAssistantResponse(reports, documents, query, userProfile, activeAnalysisContext);
+                handleTokensUsed(tokensUsed);
+                
                 if (response.type === 'document' && response.title && response.documentText) {
-                    modelMessage.document = { title: response.title, data: response.documentText };
-                    // Save document
-                    const plainText = documentToPlainText(response.documentText);
-                    const newDoc: StoredDocument = {
-                        id: `doc_draft_${Date.now()}`,
-                        name: `${response.title}.txt`,
-                        mimeType: 'text/plain',
-                        data: btoa(unescape(encodeURIComponent(plainText))),
-                        createdAt: new Date().toISOString(),
-                        folder: DocumentFolder.DRAFTED_MOTIONS,
-                        structuredData: response.documentText,
+                    onPromptConsultation();
+                    const modelMessage: LegalMessage = {
+                        role: 'model',
+                        content: "I have prepared a draft for you. Document generation is a Pro Premium service that includes a consultation to tailor the document to your needs. Please request a consultation to proceed.",
                     };
-                    onAddDocument(newDoc);
+                    setMessages(prev => [...prev, modelMessage]);
+
+                } else {
+                    const modelMessage: LegalMessage = { role: 'model', content: response.content, sources: response.sources };
+                    setMessages(prev => [...prev, modelMessage]);
                 }
-                setMessages(prev => [...prev, modelMessage]);
             } catch (error) {
                 console.error("Failed to run initial query", error);
                 setMessages(prev => [...prev, { role: 'model', content: "Sorry, an error occurred." }]);
@@ -112,9 +127,15 @@ const LegalAssistant: React.FC<LegalAssistantProps> = ({ reports, documents, use
 
         if (activeReportContext) {
             const runAnalysis = async () => {
+                if (!hasSufficientTokens()) {
+                    promptUpgrade("Legal Assistant");
+                    clearActiveReportContext();
+                    return;
+                }
                 setIsLoading(true);
                 try {
-                    const response = await getInitialLegalAnalysis(activeReportContext, reports, userProfile);
+                    const { response, tokensUsed } = await getInitialLegalAnalysis(activeReportContext, reports, userProfile);
+                    handleTokensUsed(tokensUsed);
                     const analysisMessage: LegalMessage = {
                         role: 'model',
                         content: response.content,
@@ -138,7 +159,7 @@ const LegalAssistant: React.FC<LegalAssistantProps> = ({ reports, documents, use
             sendInitialQuery(initialQuery);
         }
 
-    }, [activeReportContext, reports, documents, userProfile, clearActiveReportContext, initialQuery, clearInitialQuery, activeAnalysisContext, onAddDocument, clearActiveAnalysisContext, isLoading]);
+    }, [activeReportContext, reports, documents, userProfile, clearActiveReportContext, initialQuery, clearInitialQuery, activeAnalysisContext, onAddDocument, clearActiveAnalysisContext, isLoading, hasSufficientTokens, promptUpgrade, handleTokensUsed, onPromptConsultation]);
 
 
     const scrollToBottom = () => {
@@ -151,6 +172,10 @@ const LegalAssistant: React.FC<LegalAssistantProps> = ({ reports, documents, use
 
     const handleSendMessage = async () => {
         if (!input.trim() || isLoading) return;
+        if (!hasSufficientTokens()) {
+            promptUpgrade("Legal Assistant");
+            return;
+        }
 
         setAnalyzedDocInfo(null);
         const userMessage: LegalMessage = { role: 'user', content: input };
@@ -160,34 +185,26 @@ const LegalAssistant: React.FC<LegalAssistantProps> = ({ reports, documents, use
         setIsLoading(true);
 
         try {
-            const response = await getLegalAssistantResponse(reports, documents, currentInput, userProfile, activeAnalysisContext);
+            const { response, tokensUsed } = await getLegalAssistantResponse(reports, documents, currentInput, userProfile, activeAnalysisContext);
+            handleTokensUsed(tokensUsed);
             
-            const modelMessage: LegalMessage = {
-                role: 'model',
-                content: response.content,
-                sources: response.sources
-            };
-
             if (response.type === 'document' && response.title && response.documentText) {
-                modelMessage.document = {
-                    title: response.title,
-                    data: response.documentText
+                onPromptConsultation();
+                const modelMessage: LegalMessage = {
+                    role: 'model',
+                    content: `I have drafted the **${response.title}** for you. Accessing and saving documents requires our Pro Premium service, which includes a consultation to ensure it meets your specific legal needs.`,
+                    sources: response.sources
                 };
-                 // Save document
-                const plainText = documentToPlainText(response.documentText);
-                const newDoc: StoredDocument = {
-                    id: `doc_draft_${Date.now()}`,
-                    name: `${response.title}.txt`,
-                    mimeType: 'text/plain',
-                    data: btoa(unescape(encodeURIComponent(plainText))),
-                    createdAt: new Date().toISOString(),
-                    folder: DocumentFolder.DRAFTED_MOTIONS,
-                    structuredData: response.documentText,
+                 setMessages(prev => [...prev, modelMessage]);
+            } else {
+                 const modelMessage: LegalMessage = {
+                    role: 'model',
+                    content: response.content,
+                    sources: response.sources
                 };
-                onAddDocument(newDoc);
+                setMessages(prev => [...prev, modelMessage]);
             }
-            
-            setMessages(prev => [...prev, modelMessage]);
+
         } catch (error) {
             console.error(error);
             setMessages(prev => [...prev, { role: 'model', content: "Sorry, an error occurred." }]);
@@ -196,239 +213,147 @@ const LegalAssistant: React.FC<LegalAssistantProps> = ({ reports, documents, use
         }
     };
 
-    const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
         const file = event.target.files?.[0];
         if (!file) return;
 
-        if (file.type !== 'application/pdf') {
-            alert("Invalid file type. Please upload a PDF document.");
+        if (!hasSufficientTokens()) {
+            promptUpgrade("Document Analysis");
             return;
         }
 
         setIsLoading(true);
         setAnalyzedDocInfo(null);
-
+        
         try {
-            const base64Data = await fileToBase64(file);
-            const userMessage: LegalMessage = { role: 'user', content: `Please analyze the document: ${file.name}` };
-            setMessages(prev => [...prev, userMessage]);
+            const fileData = await fileToBase64(file);
+            const { analysis, tokensUsed } = await analyzeDocument(fileData, file.type, userProfile);
+            handleTokensUsed(tokensUsed);
 
-            const analysis = await analyzeDocument(base64Data, file.type, userProfile);
-            const modelMessage: LegalMessage = { role: 'model', content: analysis };
-            
-            setMessages(prev => {
-                const newMessages = [...prev, modelMessage];
-                const analysisMessageId = newMessages.length - 1;
-                setAnalyzedDocInfo({
-                    fileData: base64Data,
-                    mimeType: file.type,
-                    analysisMessageId: analysisMessageId,
-                });
-                return newMessages;
-            });
-
-        } catch (err) {
-            console.error("Error during document analysis:", err);
-            const errorMessage: LegalMessage = { role: 'model', content: "Sorry, an error occurred while processing your document." };
-            setMessages(prev => [...prev, errorMessage]);
+            const analysisMessage: LegalMessage = {
+                role: 'model',
+                content: `Here is my analysis of **${file.name}**:\n\n${analysis}`
+            };
+            setMessages(prev => [...prev, analysisMessage]);
+            setAnalyzedDocInfo({ fileData, mimeType: file.type, analysisMessageId: messages.length + 1 });
+        } catch (error) {
+            console.error("Error analyzing document:", error);
+            setMessages(prev => [...prev, { role: 'model', content: "Sorry, an error occurred during document analysis." }]);
         } finally {
             setIsLoading(false);
-            if (fileInputRef.current) {
-                fileInputRef.current.value = "";
-            }
+            if(fileInputRef.current) fileInputRef.current.value = "";
         }
     };
 
-    const handleRedraftRequest = async () => {
-        if (!analyzedDocInfo || isLoading) return;
-
-        setIsLoading(true);
-        const { fileData, mimeType, analysisMessageId } = analyzedDocInfo;
-        const analysisText = messages[analysisMessageId].content;
-        setAnalyzedDocInfo(null); // Button should disappear once clicked
-
-        try {
-            const redraftedDocument = await redraftDocument(fileData, mimeType, analysisText, userProfile);
-            if(redraftedDocument){
-                const modelMessage: LegalMessage = {
-                    role: 'model',
-                    content: "I have redrafted the document with the suggested improvements. You can preview the new version.",
-                    document: {
-                        title: "DRAFT: Redrafted Document",
-                        data: redraftedDocument,
-                    }
-                };
-                setMessages(prev => [...prev, modelMessage]);
-
-                 // Save document
-                const plainText = documentToPlainText(redraftedDocument);
-                const newDoc: StoredDocument = {
-                    id: `doc_redraft_${Date.now()}`,
-                    name: `${redraftedDocument.title}.txt`,
-                    mimeType: 'text/plain',
-                    data: btoa(unescape(encodeURIComponent(plainText))),
-                    createdAt: new Date().toISOString(),
-                    folder: DocumentFolder.DRAFTED_MOTIONS,
-                    structuredData: redraftedDocument,
-                };
-                onAddDocument(newDoc);
-
-            } else {
-                 throw new Error("Redrafted document was null");
-            }
-        } catch (err) {
-            console.error("Error during document redraft:", err);
-            const errorMessage: LegalMessage = { role: 'model', content: "Sorry, an error occurred while redrafting your document." };
-            setMessages(prev => [...prev, errorMessage]);
-        } finally {
-            setIsLoading(false);
-        }
+    const handleRedraft = async (analysisText: string) => {
+        if (!analyzedDocInfo) return;
+        
+        onPromptConsultation();
+        const modelMessage: LegalMessage = {
+            role: 'model',
+            content: "I am ready to redraft the document with the suggestions. Document redrafting is part of our Pro Premium service. Please request a consultation to proceed."
+        };
+        setMessages(prev => [...prev, modelMessage]);
+        setAnalyzedDocInfo(null); // Clear the analysis info so the button disappears
     };
 
     return (
-        <>
-            <MotionPreviewModal
-                isOpen={!!modalContent}
-                onClose={() => setModalContent(null)}
-                title={modalContent?.title || ''}
-                document={modalContent?.document || null}
-            />
-            <div className="space-y-6 flex flex-col h-full">
-                <div>
-                    <h1 className="text-3xl font-bold text-gray-900 tracking-tight">Legal Assistant</h1>
-                    <p className="mt-2 text-base text-gray-600 max-w-3xl">Ask questions or request to draft legal documents based on your reports. This AI assistant will not provide legal advice.</p>
-                </div>
-
-                 {activeAnalysisContext && (
-                    <div className="p-4 bg-amber-50 border border-amber-200 rounded-lg flex items-start justify-between gap-4">
-                        <div className="flex items-start gap-3">
-                            <LightBulbIcon className="w-6 h-6 text-amber-600 flex-shrink-0 mt-0.5" />
-                            <div>
-                                <h3 className="text-sm font-semibold text-amber-900">Working with Deep Analysis Context</h3>
-                                <p className="text-sm text-amber-800 mt-1">
-                                    The AI is using the generated deep analysis to inform its responses. This context will be used for all subsequent messages in this session.
-                                </p>
+        <div className="flex flex-col h-full bg-white border border-gray-200 rounded-lg shadow-sm">
+            {modalContent && (
+                <MotionPreviewModal 
+                    isOpen={!!modalContent}
+                    onClose={() => setModalContent(null)}
+                    document={modalContent.document}
+                    title={modalContent.title}
+                />
+            )}
+            <div className="flex-1 p-4 sm:p-6 overflow-y-auto">
+                <div className="space-y-6">
+                    {messages.map((msg, index) => (
+                        <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
+                             {msg.role === 'model' && <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0"><ScaleIcon className="w-5 h-5 text-gray-500"/></div>}
+                            <div className={`max-w-3xl px-4 py-3 rounded-2xl ${msg.role === 'user' ? 'bg-blue-950 text-white rounded-br-lg' : 'bg-gray-100 text-gray-900 rounded-bl-lg'}`}>
+                                <div className="prose prose-sm max-w-none prose-p:my-1"><ReactMarkdown>{msg.content}</ReactMarkdown></div>
+                                {msg.document && (
+                                     <button onClick={() => setModalContent({ title: msg.document!.title, document: msg.document!.data })} className="mt-3 flex items-center gap-2 px-3 py-1.5 text-sm font-semibold text-blue-900 bg-blue-100 rounded-md hover:bg-blue-200">
+                                        <DocumentTextIcon className="w-4 h-4" />
+                                        Preview: {msg.document.title}
+                                    </button>
+                                )}
+                                {analyzedDocInfo && analyzedDocInfo.analysisMessageId === index && (
+                                    <button onClick={() => handleRedraft(msg.content)} className="mt-3 flex items-center gap-2 px-3 py-1.5 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700">
+                                        <SparklesIcon className="w-4 h-4" />
+                                        Redraft with these suggestions
+                                    </button>
+                                )}
+                                {msg.sources && msg.sources.length > 0 && (
+                                    <div className="mt-3 pt-3 border-t border-gray-300">
+                                        <h4 className="text-xs font-semibold text-gray-600 mb-1.5">Sources:</h4>
+                                        <ul className="list-disc list-inside space-y-1">
+                                            {msg.sources.map((source, idx) => (
+                                                <li key={idx} className="text-xs">
+                                                    <a href={source.web.uri} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">{source.web.title || source.web.uri}</a>
+                                                </li>
+                                            ))}
+                                        </ul>
+                                    </div>
+                                )}
+                            </div>
+                            {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0"><UserCircleIcon className="w-6 h-6 text-gray-500"/></div>}
+                        </div>
+                    ))}
+                    {isLoading && (
+                         <div className="flex items-start gap-3">
+                           <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0"><ScaleIcon className="w-5 h-5 text-gray-500"/></div>
+                            <div className="max-w-lg px-4 py-3 rounded-2xl bg-gray-100 text-gray-800 rounded-bl-lg">
+                                <div className="flex items-center space-x-1">
+                                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-0"></span>
+                                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-150"></span>
+                                    <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-300"></span>
+                                </div>
                             </div>
                         </div>
+                    )}
+                </div>
+                <div ref={messagesEndRef} />
+            </div>
+            <div className="p-4 bg-white border-t border-gray-200 rounded-b-lg">
+                <div className="relative">
+                    <input
+                        type="file"
+                        ref={fileInputRef}
+                        onChange={handleFileChange}
+                        className="hidden"
+                        accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    />
+                    <textarea
+                        value={input}
+                        onChange={(e) => setInput(e.target.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                handleSendMessage();
+                            }
+                        }}
+                        placeholder="Ask a question or request a document..."
+                        rows={1}
+                        className="w-full pl-4 pr-24 py-3 text-sm resize-none border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <div className="absolute right-3 top-1/2 -translate-y-1/2 flex items-center gap-1">
                         <button 
-                            onClick={clearActiveAnalysisContext} 
-                            className="p-1.5 text-amber-500 hover:text-amber-800 rounded-full hover:bg-amber-100 flex-shrink-0"
-                            aria-label="Clear deep analysis context"
+                            onClick={() => fileInputRef.current?.click()} 
+                            className="p-2 text-gray-500 hover:text-blue-600 rounded-full hover:bg-gray-100"
+                            title="Analyze a document"
                         >
-                            <XMarkIcon className="w-5 h-5" />
+                            <LightBulbIcon className="w-5 h-5" />
                         </button>
-                    </div>
-                )}
-
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                    <h2 className="text-lg font-semibold text-gray-800">Document Analysis</h2>
-                    <p className="text-sm text-gray-600 mt-1">Upload a legal document (PDF) for the AI to review for errors and potential improvements.</p>
-                    <div className="mt-3">
-                        <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileSelect}
-                            className="hidden"
-                            accept="application/pdf"
-                            disabled={isLoading}
-                        />
-                        <button
-                            onClick={() => fileInputRef.current?.click()}
-                            disabled={isLoading}
-                            className="flex items-center justify-center px-4 py-2 text-sm font-semibold text-white bg-blue-950 rounded-md shadow-sm hover:bg-blue-800 disabled:bg-blue-300 disabled:cursor-not-allowed focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all"
-                        >
-                            <DocumentTextIcon className="w-5 h-5 mr-2" />
-                            {isLoading ? 'Processing...' : 'Upload & Analyze PDF'}
+                        <button onClick={handleSendMessage} disabled={isLoading || !input.trim()} className="p-2 text-white bg-blue-950 rounded-full hover:bg-blue-800 disabled:bg-blue-300">
+                             <PaperAirplaneIcon className="w-5 h-5" />
                         </button>
-                    </div>
-                </div>
-
-                <div className="flex flex-col flex-1 min-h-0 bg-white border border-gray-200 rounded-lg shadow-sm">
-                    <div className="flex-1 p-6 overflow-y-auto">
-                        <div className="space-y-6">
-                            {messages.map((msg, index) => (
-                                <div key={index} className={`flex items-start gap-3 ${msg.role === 'user' ? 'justify-end' : ''}`}>
-                                    {msg.role === 'model' && <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0"><SparklesIcon className="w-5 h-5 text-gray-500"/></div>}
-                                    <div className={`max-w-xl px-4 py-3 rounded-2xl ${msg.role === 'user' ? 'bg-blue-950 text-white rounded-br-lg' : 'bg-gray-100 text-gray-900 rounded-bl-lg'}`}>
-                                        <div className="prose prose-sm max-w-none prose-p:my-1 prose-ul:my-2 prose-li:my-0.5">
-                                            <ReactMarkdown>{msg.content}</ReactMarkdown>
-                                        </div>
-                                        {msg.sources && msg.sources.length > 0 && (
-                                            <div className="mt-3 pt-3 border-t border-gray-200">
-                                                <h5 className="text-xs font-semibold text-gray-600 mb-1.5">Sources</h5>
-                                                <ul className="space-y-1">
-                                                    {msg.sources.map((source, idx) => (
-                                                        <li key={idx} className="text-xs truncate">
-                                                            <a href={source.web.uri} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:underline">
-                                                                {source.web.title || source.web.uri}
-                                                            </a>
-                                                        </li>
-                                                    ))}
-                                                </ul>
-                                            </div>
-                                        )}
-                                        {msg.document && (
-                                            <div className="mt-3">
-                                                <button
-                                                    onClick={() => setModalContent({ title: msg.document!.title, document: msg.document!.data })}
-                                                    className="flex items-center gap-2 w-full text-left px-3 py-2 text-sm font-semibold text-blue-900 bg-blue-100 rounded-md hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                                                >
-                                                    <DocumentTextIcon className="w-5 h-5 flex-shrink-0" />
-                                                    <span>Preview Document</span>
-                                                </button>
-                                            </div>
-                                        )}
-                                        {analyzedDocInfo?.analysisMessageId === index && (
-                                            <div className="mt-3 pt-3 border-t border-gray-200">
-                                                <button
-                                                    onClick={handleRedraftRequest}
-                                                    disabled={isLoading}
-                                                    className="flex items-center justify-center gap-2 w-full text-left px-3 py-2 text-sm font-semibold text-white bg-green-600 rounded-md hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                                                >
-                                                    <SparklesIcon className="w-5 h-5 flex-shrink-0" />
-                                                    <span>Redraft with Improvements</span>
-                                                </button>
-                                            </div>
-                                        )}
-                                    </div>
-                                    {msg.role === 'user' && <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0"><UserCircleIcon className="w-6 h-6 text-gray-500"/></div>}
-                                </div>
-                            ))}
-                            {isLoading && (
-                                <div className="flex items-start gap-3">
-                                <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0"><SparklesIcon className="w-5 h-5 text-gray-500"/></div>
-                                    <div className="max-w-lg px-4 py-3 rounded-2xl bg-gray-100 text-gray-800 rounded-bl-lg">
-                                        <div className="flex items-center space-x-1">
-                                            <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-0"></span>
-                                            <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-150"></span>
-                                            <span className="w-2 h-2 bg-gray-400 rounded-full animate-pulse delay-300"></span>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                        <div ref={messagesEndRef} />
-                    </div>
-                    <div className="p-4 bg-white border-t border-gray-200 rounded-b-lg">
-                        <div className="relative">
-                            <input
-                                type="text"
-                                value={input}
-                                onChange={(e) => setInput(e.target.value)}
-                                onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                placeholder="Ask a question or request a document..."
-                                className="w-full pl-4 pr-12 py-3 text-sm border border-gray-300 rounded-lg bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-shadow duration-150"
-                            />
-                            <div className="absolute right-3 top-1/2 -translate-y-1/2">
-                                <button onClick={handleSendMessage} disabled={isLoading || !input.trim()} className="p-2 text-white bg-blue-950 rounded-full hover:bg-blue-800 disabled:bg-blue-300 disabled:cursor-not-allowed transition-colors" aria-label="Send message">
-                                    <PaperAirplaneIcon className="w-5 h-5" />
-                                </button>
-                            </div>
-                        </div>
                     </div>
                 </div>
             </div>
-        </>
+        </div>
     );
 };
 

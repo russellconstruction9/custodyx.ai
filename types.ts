@@ -96,7 +96,11 @@ export interface IncidentTemplate {
   legalContext?: string;
 }
 
-// FIX: Added missing SubscriptionTier type to be used in the UpgradeModal component.
 export type SubscriptionTier = 'Free' | 'Plus' | 'Pro';
+
+export interface TokenUsage {
+  used: number;
+  resetDate: string; // ISO string
+}
 
 export type View = 'dashboard' | 'timeline' | 'new_report' | 'patterns' | 'insights' | 'assistant' | 'profile' | 'documents' | 'calendar' | 'messaging';

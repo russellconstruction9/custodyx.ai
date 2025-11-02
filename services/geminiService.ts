@@ -117,7 +117,7 @@ const formatMessagesToContent = (messages: ChatMessage[]): Content[] => {
     });
 };
 
-export const getChatResponse = async (messages: ChatMessage[], userProfile: UserProfile | null): Promise<string> => {
+export const getChatResponse = async (messages: ChatMessage[], userProfile: UserProfile | null): Promise<{ text: string; tokensUsed: number }> => {
     const contents = formatMessagesToContent(messages);
     const systemInstruction = SYSTEM_PROMPT_CHAT.replace('{USER_PROFILE_CONTEXT}', formatUserProfileContext(userProfile));
 
@@ -129,10 +129,11 @@ export const getChatResponse = async (messages: ChatMessage[], userProfile: User
         }
     });
 
-    return response.text;
+    const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
+    return { text: response.text, tokensUsed };
 };
 
-export const generateJsonReport = async (messages: ChatMessage[], userProfile: UserProfile | null): Promise<GeneratedReportData | null> => {
+export const generateJsonReport = async (messages: ChatMessage[], userProfile: UserProfile | null): Promise<{ reportData: GeneratedReportData | null; tokensUsed: number }> => {
     const conversationText = messages
         .map(m => `${m.role === 'user' ? 'User' : 'Assistant'}: ${m.content}`)
         .join('\n\n');
@@ -152,26 +153,27 @@ export const generateJsonReport = async (messages: ChatMessage[], userProfile: U
             }
         });
 
+        const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
         const jsonText = response.text.trim();
         
         if (!jsonText) {
             console.error("Received empty response from report generation.");
-            return null;
+            return { reportData: null, tokensUsed };
         }
 
         const reportData = JSON.parse(jsonText);
         
         if (reportData.content && reportData.category && reportData.tags) {
-            return reportData as GeneratedReportData;
+            return { reportData: reportData as GeneratedReportData, tokensUsed };
         }
-        return null;
+        return { reportData: null, tokensUsed };
     } catch (e) {
         console.error("Failed to generate or parse report JSON:", e);
-        return null;
+        return { reportData: null, tokensUsed: 0 };
     }
 };
 
-export const getThemeAnalysis = async (reports: Report[], category: string): Promise<Theme[]> => {
+export const getThemeAnalysis = async (reports: Report[], category: string): Promise<{ themes: Theme[]; tokensUsed: number }> => {
     const reportsContent = reports.map(r => `--- REPORT ---\n${r.content}\n--- END REPORT ---`).join('\n\n');
     const prompt = SYSTEM_PROMPT_THEME_ANALYSIS.replace('{CATEGORY_NAME}', category);
 
@@ -185,19 +187,20 @@ export const getThemeAnalysis = async (reports: Report[], category: string): Pro
             }
         });
         
+        const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
         const jsonText = response.text.trim();
         const themes = JSON.parse(jsonText);
         if (Array.isArray(themes)) {
-            return themes as Theme[];
+            return { themes: themes as Theme[], tokensUsed };
         }
-        return [];
+        return { themes: [], tokensUsed };
     } catch (e) {
         console.error("Failed to get theme analysis:", e);
-        return [];
+        return { themes: [], tokensUsed: 0 };
     }
 };
 
-export const getSingleIncidentAnalysis = async (mainReport: Report, allReports: Report[], userProfile: UserProfile | null): Promise<{ analysis: string; sources: any[] }> => {
+export const getSingleIncidentAnalysis = async (mainReport: Report, allReports: Report[], userProfile: UserProfile | null): Promise<{ analysis: string; sources: any[]; tokensUsed: number }> => {
     const mainReportContent = `--- PRIMARY INCIDENT TO ANALYZE (ID: ${mainReport.id}, Date: ${new Date(mainReport.createdAt).toLocaleDateString()}) ---\n${mainReport.content}\n--- END PRIMARY INCIDENT ---`;
     
     const otherReportsContent = allReports
@@ -209,16 +212,17 @@ export const getSingleIncidentAnalysis = async (mainReport: Report, allReports: 
     const fullPrompt = `${systemInstruction}\n\n${formatUserProfileContext(userProfile)}\n\n## Incident Reports for Analysis:\n\n${mainReportContent}\n\n${otherReportsContent}`;
 
     const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: 'gemini-2.5-pro', // Using a more powerful model for deep analysis
         contents: fullPrompt,
         config: {
             tools: [{googleSearch: {}}],
         }
     });
-
+    
+    const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
     const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
-    return { analysis: response.text, sources: sources };
+    return { analysis: response.text, sources: sources, tokensUsed };
 };
 
 
@@ -228,7 +232,7 @@ export const getLegalAssistantResponse = async (
     query: string, 
     userProfile: UserProfile | null,
     analysisContext: string | null
-): Promise<LegalAssistantResponse & { sources?: any[] }> => {
+): Promise<{ response: LegalAssistantResponse & { sources?: any[] }; tokensUsed: number }> => {
     
     const reportsContent = reports.map(r => `--- REPORT (ID: ${r.id}, Date: ${new Date(r.createdAt).toLocaleDateString()}) ---\n${r.content}\n--- END REPORT ---`).join('\n\n');
     
@@ -240,7 +244,6 @@ export const getLegalAssistantResponse = async (
         .map(doc => {
             let contentSummary = '';
             try {
-                // Correctly decode UTF-8 string from base64
                 const decodedText = decodeURIComponent(escape(atob(doc.data)));
                 contentSummary = `Content Preview: ${decodedText.substring(0, 750)}...`;
             } catch (e) {
@@ -274,12 +277,15 @@ export const getLegalAssistantResponse = async (
             }
         });
     
+        const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
         const responseText = response.text;
         const firstBrace = responseText.indexOf('{');
         const lastBrace = responseText.lastIndexOf('}');
 
         if (firstBrace === -1 || lastBrace === -1 || lastBrace < firstBrace) {
-            throw new Error("No valid JSON object found in the response from Legal Assistant API.");
+            // If no JSON, assume it's a simple chat response.
+             const finalResponse = { type: 'chat', content: responseText, sources: [] } as LegalAssistantResponse & { sources?: any[] };
+            return { response: finalResponse, tokensUsed };
         }
         
         const jsonText = responseText.substring(firstBrace, lastBrace + 1);
@@ -288,21 +294,23 @@ export const getLegalAssistantResponse = async (
         const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
         if (parsedResponse.type && parsedResponse.content) {
-            return { ...parsedResponse, sources } as LegalAssistantResponse & { sources?: any[] };
+            const finalResponse = { ...parsedResponse, sources } as LegalAssistantResponse & { sources?: any[] };
+            return { response: finalResponse, tokensUsed };
         }
 
         throw new Error("Invalid JSON structure from Legal Assistant API.");
 
     } catch (error) {
         console.error("Error getting or parsing legal assistant response:", error);
-        return {
+        const errorResponse: LegalAssistantResponse = {
             type: 'chat',
             content: "I'm sorry, an unexpected error occurred while processing your request. Please try again."
         };
+        return { response: errorResponse, tokensUsed: 0 };
     }
 };
 
-export const getInitialLegalAnalysis = async (mainReport: Report, allReports: Report[], userProfile: UserProfile | null): Promise<LegalAssistantResponse & { sources?: any[] }> => {
+export const getInitialLegalAnalysis = async (mainReport: Report, allReports: Report[], userProfile: UserProfile | null): Promise<{ response: LegalAssistantResponse & { sources?: any[] }; tokensUsed: number }> => {
     const mainReportContent = `--- PRIMARY INCIDENT TO ANALYZE (ID: ${mainReport.id}, Date: ${new Date(mainReport.createdAt).toLocaleDateString()}) ---\n${mainReport.content}\n--- END PRIMARY INCIDENT ---`;
     
     const otherReportsContent = allReports
@@ -322,6 +330,7 @@ export const getInitialLegalAnalysis = async (mainReport: Report, allReports: Re
             }
         });
     
+        const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
         const responseText = response.text;
         const firstBrace = responseText.indexOf('{');
         const lastBrace = responseText.lastIndexOf('}');
@@ -335,17 +344,19 @@ export const getInitialLegalAnalysis = async (mainReport: Report, allReports: Re
         const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
 
         if (parsedResponse.type === 'chat' && parsedResponse.content) {
-            return { ...parsedResponse, sources } as LegalAssistantResponse & { sources?: any[] };
+            const finalResponse = { ...parsedResponse, sources } as LegalAssistantResponse & { sources?: any[] };
+            return { response: finalResponse, tokensUsed };
         }
 
         throw new Error("Invalid JSON structure from Legal Analysis API.");
 
     } catch (error) {
         console.error("Error getting or parsing initial legal analysis:", error);
-        return {
+        const errorResponse: LegalAssistantResponse = {
             type: 'chat',
             content: "I'm sorry, an unexpected error occurred while analyzing the incident. Please try asking your question directly."
         };
+        return { response: errorResponse, tokensUsed: 0 };
     }
 };
 
@@ -353,7 +364,7 @@ export const analyzeDocument = async (
     fileData: string, 
     mimeType: string, 
     userProfile: UserProfile | null
-): Promise<string> => {
+): Promise<{ analysis: string; tokensUsed: number }> => {
     const systemInstruction = `${SYSTEM_PROMPT_DOCUMENT_ANALYSIS}\n${formatUserProfileContext(userProfile)}`;
     
     const documentPart = {
@@ -376,10 +387,11 @@ export const analyzeDocument = async (
             }
         });
         
-        return response.text;
+        const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
+        return { analysis: response.text, tokensUsed };
     } catch (error) {
         console.error("Error analyzing document:", error);
-        return "I'm sorry, an unexpected error occurred while analyzing the document. Please try again.";
+        return { analysis: "I'm sorry, an unexpected error occurred while analyzing the document. Please try again.", tokensUsed: 0 };
     }
 };
 
@@ -388,7 +400,7 @@ export const redraftDocument = async (
     mimeType: string,
     analysisText: string,
     userProfile: UserProfile | null
-): Promise<StructuredLegalDocument | null> => {
+): Promise<{ redraftedDoc: StructuredLegalDocument | null; tokensUsed: number }> => {
     const systemInstruction = `${SYSTEM_PROMPT_DOCUMENT_REDRAFT}\n${formatUserProfileContext(userProfile)}`;
 
     const documentPart = {
@@ -413,11 +425,13 @@ export const redraftDocument = async (
             }
         });
         
+        const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
         const jsonText = response.text.trim();
-        return JSON.parse(jsonText) as StructuredLegalDocument;
+        const redraftedDoc = JSON.parse(jsonText) as StructuredLegalDocument;
+        return { redraftedDoc, tokensUsed };
     } catch (error) {
         console.error("Error redrafting document:", error);
-        return null;
+        return { redraftedDoc: null, tokensUsed: 0 };
     }
 };
 
@@ -426,7 +440,7 @@ export const generateEvidencePackage = async (
     selectedDocuments: StoredDocument[],
     userProfile: UserProfile | null,
     packageObjective: string,
-): Promise<StructuredLegalDocument | null> => {
+): Promise<{ evidencePackage: StructuredLegalDocument | null; tokensUsed: number }> => {
 
     const reportsString = selectedReports
         .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
@@ -457,25 +471,37 @@ Date Uploaded: ${new Date(d.createdAt).toLocaleString()}
 
     try {
         const response = await ai.models.generateContent({
-            model: 'gemini-2.5-flash',
+            model: 'gemini-2.5-pro', // Use pro model for high-stakes generation
             contents: userPrompt,
             config: {
                 systemInstruction: systemInstruction,
                 responseMimeType: "application/json",
                 responseSchema: structuredLegalDocumentSchema,
-                tools: [{googleSearch: {}}],
             }
         });
 
+        const tokensUsed = response.usageMetadata?.totalTokenCount ?? 0;
         const jsonText = response.text.trim();
-        return JSON.parse(jsonText) as StructuredLegalDocument;
+        const evidencePackage = JSON.parse(jsonText) as StructuredLegalDocument;
+        return { evidencePackage, tokensUsed };
     } catch (e) {
         console.error("Failed to generate evidence package:", e);
-        return null;
+        return { evidencePackage: null, tokensUsed: 0 };
     }
 };
 
 // --- Agent Service (ai.live) ---
+
+const countTextTokens = async (text: string, model: string): Promise<number> => {
+    if (!text) return 0;
+    try {
+        const response = await ai.models.countTokens({ model, contents: [{ role: 'user', parts: [{ text }] }] });
+        return response.totalTokens;
+    } catch (e) {
+        console.error("Token counting failed:", e);
+        return Math.ceil(text.length / 4);
+    }
+};
 
 const navigateToViewFunctionDeclaration: FunctionDeclaration = {
     name: 'navigateToView',
@@ -500,7 +526,6 @@ export const connectToAgent = (
         onError: (error: ErrorEvent) => void;
         onClose: (event: CloseEvent) => void;
     }
-// FIX: The '@google/genai' library exports 'Session', not 'LiveSession'.
 ): Promise<Session> => {
     const systemInstruction = SYSTEM_PROMPT_VOICE_AGENT.replace('{USER_PROFILE_CONTEXT}', formatUserProfileContext(userProfile));
 
@@ -526,6 +551,11 @@ export const connectToAgent = (
 
     return sessionPromise;
 };
+
+export const countAgentTokens = async (text: string): Promise<number> => {
+    return countTextTokens(text, 'gemini-2.5-flash-native-audio-preview-09-2025');
+};
+
 
 // Audio Utilities
 export function createPcmBlob(data: Float32Array): Blob {

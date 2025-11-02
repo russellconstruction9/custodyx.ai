@@ -1,30 +1,24 @@
-import React, { useState, useCallback, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
+import IncidentTimeline from './components/IncidentTimeline';
+import ChatInterface from './components/ChatInterface';
+import PatternAnalysis from './components/PatternAnalysis';
+import DeepAnalysis from './components/BehavioralInsights';
+import LegalAssistant from './components/LegalAssistant';
+import UserProfile from './components/UserProfile';
+import DocumentLibrary from './components/DocumentLibrary';
+import CalendarView from './components/CalendarView';
+import EvidencePackageBuilder from './components/EvidencePackageBuilder';
+import Dashboard from './components/Dashboard';
 import LandingPage from './components/LandingPage';
-import { Report, UserProfile as UserProfileType, StoredDocument, View, IncidentTemplate, CoParentMessage } from './types';
+import AgentChat from './components/AgentChat';
+import Messaging from './components/Messaging';
+import UpgradeModal from './components/UpgradeModal';
+import ConsultationModal from './components/ConsultationModal';
+import { Report, UserProfile as UserProfileType, StoredDocument, View, IncidentTemplate, CoParentMessage, SubscriptionTier, TokenUsage } from './types';
+import { TOKEN_LIMITS } from './constants';
 import { SparklesIcon } from './components/icons';
-
-// Lazy load view-based components for code splitting
-const Dashboard = lazy(() => import('./components/Dashboard'));
-const IncidentTimeline = lazy(() => import('./components/IncidentTimeline'));
-const ChatInterface = lazy(() => import('./components/ChatInterface'));
-const PatternAnalysis = lazy(() => import('./components/PatternAnalysis'));
-const DeepAnalysis = lazy(() => import('./components/BehavioralInsights'));
-const LegalAssistant = lazy(() => import('./components/LegalAssistant'));
-const UserProfile = lazy(() => import('./components/UserProfile'));
-const DocumentLibrary = lazy(() => import('./components/DocumentLibrary'));
-const CalendarView = lazy(() => import('./components/CalendarView'));
-const EvidencePackageBuilder = lazy(() => import('./components/EvidencePackageBuilder'));
-const AgentChat = lazy(() => import('./components/AgentChat'));
-const Messaging = lazy(() => import('./components/Messaging'));
-
-// Loading fallback component
-const LoadingFallback = () => (
-    <div className="flex items-center justify-center min-h-[400px]">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
-    </div>
-);
 
 const App: React.FC = () => {
     const [view, setView] = useState<View>('dashboard');
@@ -78,6 +72,21 @@ const App: React.FC = () => {
             return [];
         }
     });
+
+    const [subscriptionTier, setSubscriptionTier] = useState<SubscriptionTier>(() => {
+        const savedTier = localStorage.getItem('subscriptionTier') as SubscriptionTier | null;
+        return savedTier || 'Free';
+    });
+
+    const [tokenUsage, setTokenUsage] = useState<TokenUsage>(() => {
+        const savedUsage = localStorage.getItem('tokenUsage');
+        if (savedUsage) {
+            return JSON.parse(savedUsage);
+        }
+        const nextReset = new Date();
+        nextReset.setMonth(nextReset.getMonth() + 1);
+        return { used: 0, resetDate: nextReset.toISOString() };
+    });
     
     const [isSidebarOpen, setIsSidebarOpen] = useState(false);
     const [isAgentOpen, setIsAgentOpen] = useState(false);
@@ -89,40 +98,39 @@ const App: React.FC = () => {
     const [isEvidenceBuilderOpen, setIsEvidenceBuilderOpen] = useState(false);
     const [newReportDate, setNewReportDate] = useState<Date | null>(null);
     const [isConfigError, setIsConfigError] = useState(false);
+    const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
+    const [upgradeFeatureContext, setUpgradeFeatureContext] = useState<string | undefined>(undefined);
+    const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
+
 
     useEffect(() => {
-        // Check for API key - it should be available via vite define
-        const apiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
-        if (!apiKey || apiKey === 'undefined' || apiKey === '') {
-            console.error("Configuration Error: GEMINI_API_KEY is not defined in the environment. AI features will be disabled.");
+        if (!process.env.API_KEY) {
+            console.error("Configuration Error: API_KEY is not defined in the environment. AI features will be disabled.");
             setIsConfigError(true);
         }
     }, []);
 
     // Save data to localStorage whenever it changes
+    useEffect(() => { localStorage.setItem('reports', JSON.stringify(reports)); }, [reports]);
+    useEffect(() => { localStorage.setItem('incidentTemplates', JSON.stringify(incidentTemplates)); }, [incidentTemplates]);
+    useEffect(() => { localStorage.setItem('coParentingMessages', JSON.stringify(messages)); }, [messages]);
+    useEffect(() => { localStorage.setItem('subscriptionTier', subscriptionTier); }, [subscriptionTier]);
+    useEffect(() => { localStorage.setItem('tokenUsage', JSON.stringify(tokenUsage)); }, [tokenUsage]);
+    
     useEffect(() => {
-        try {
-            localStorage.setItem('reports', JSON.stringify(reports));
-        } catch (error) {
-            console.error("Failed to save reports to localStorage", error);
-        }
-    }, [reports]);
+        const now = new Date();
+        const resetDate = new Date(tokenUsage.resetDate);
 
-    useEffect(() => {
-        try {
-            localStorage.setItem('incidentTemplates', JSON.stringify(incidentTemplates));
-        } catch (error) {
-            console.error("Failed to save incident templates to localStorage", error);
+        if (now >= resetDate) {
+            console.log("Resetting monthly token usage.");
+            const nextReset = new Date();
+            nextReset.setMonth(nextReset.getMonth() + 1);
+            setTokenUsage({
+                used: 0,
+                resetDate: nextReset.toISOString(),
+            });
         }
-    }, [incidentTemplates]);
-
-    useEffect(() => {
-        try {
-            localStorage.setItem('coParentingMessages', JSON.stringify(messages));
-        } catch (error) {
-            console.error("Failed to save messages to localStorage", error);
-        }
-    }, [messages]);
+    }, []);
 
     const handleProfileSave = (profile: UserProfileType) => {
         try {
@@ -133,10 +141,37 @@ const App: React.FC = () => {
             console.error("Failed to save user profile to localStorage", error);
         }
     };
+    
+    const promptUpgrade = useCallback((featureName: string) => {
+        setUpgradeFeatureContext(featureName);
+        setIsUpgradeModalOpen(true);
+    }, []);
+
+    const handleUpgradeClick = () => {
+        setUpgradeFeatureContext('your subscription');
+        setIsUpgradeModalOpen(true);
+    };
+    
+    const handlePromptConsultation = useCallback(() => {
+        setIsConsultationModalOpen(true);
+    }, []);
+
+    const handleSwitchPlan = (tier: SubscriptionTier) => {
+        setSubscriptionTier(tier);
+        setIsUpgradeModalOpen(false);
+    };
+
+    const handleTokensUsed = useCallback((count: number) => {
+        setTokenUsage(prev => ({ ...prev, used: prev.used + count }));
+    }, []);
+
+    const hasSufficientTokens = useCallback(() => {
+        return tokenUsage.used < TOKEN_LIMITS[subscriptionTier];
+    }, [tokenUsage, subscriptionTier]);
 
     const handleReportGenerated = (newReport: Report) => {
         setReports(prev => [...prev, newReport]);
-        setNewReportDate(null); // Clear date after generation
+        setNewReportDate(null);
     };
     
     const handleAddDocument = useCallback((newDocument: StoredDocument) => {
@@ -178,13 +213,8 @@ const App: React.FC = () => {
             senderId: 'user',
             timestamp: new Date().toISOString(),
         };
-        
-        // In a real app with Firebase, this would be a call to Firestore to add the message to a 'messages' collection.
-        // The other user's app would listen for changes to this collection to receive the message in real-time.
         const updatedMessages = [...messages, userMessage];
         setMessages(updatedMessages);
-    
-        // Simulate a response from the other parent for demonstration purposes.
         setTimeout(() => {
             const otherParentResponse: CoParentMessage = {
                 id: `msg_${Date.now() + 1}`,
@@ -192,29 +222,56 @@ const App: React.FC = () => {
                 senderId: 'other_parent',
                 timestamp: new Date().toISOString(),
             };
-            // In a real app, this part would be replaced by a listener to the messages collection in Firestore,
-            // which would add new messages from the other parent to the state.
             setMessages(prev => [...prev, otherParentResponse]);
-        }, 1500 + Math.random() * 1000); // Add a realistic delay
+        }, 1500 + Math.random() * 1000);
     };
 
     const handleViewChange = useCallback((newView: View) => {
+        const tierRequired: Partial<Record<View, SubscriptionTier>> = {
+            'patterns': 'Plus',
+            'documents': 'Plus',
+            'assistant': 'Plus',
+            'insights': 'Pro',
+        };
+
+        const requiredTier = tierRequired[newView];
+        if (requiredTier) {
+            const tierLevels: Record<SubscriptionTier, number> = { 'Free': 0, 'Plus': 1, 'Pro': 2 };
+            if (tierLevels[subscriptionTier] < tierLevels[requiredTier]) {
+                const featureNameMap: Partial<Record<View, string>> = {
+                    'patterns': 'Pattern Analysis',
+                    'documents': 'Document Library',
+                    'assistant': 'Legal Assistant',
+                    'insights': 'Deep Analysis',
+                };
+                promptUpgrade(featureNameMap[newView] || 'this feature');
+                return;
+            }
+        }
+
         if (newView !== 'new_report') setNewReportDate(null);
         setView(newView);
         setIsSidebarOpen(false);
-    }, []);
-
+    }, [subscriptionTier, promptUpgrade]);
 
     const handleDiscussIncident = (reportId: string) => {
+        if (subscriptionTier === 'Free') {
+            promptUpgrade('Legal Assistant');
+            return;
+        }
         const reportToDiscuss = reports.find(r => r.id === reportId);
         if (reportToDiscuss) {
             setActiveReportContext(reportToDiscuss);
-            setActiveAnalysisContext(null); // Clear analysis context
+            setActiveAnalysisContext(null);
             handleViewChange('assistant');
         }
     };
 
     const handleAnalyzeIncident = (reportId: string) => {
+        if (subscriptionTier !== 'Pro') {
+            promptUpgrade('Deep Analysis');
+            return;
+        }
         const reportToAnalyze = reports.find(r => r.id === reportId);
         if (reportToAnalyze) {
             setActiveInsightContext(reportToAnalyze);
@@ -225,10 +282,10 @@ const App: React.FC = () => {
     const handleGenerateDraftFromInsight = (analysisText: string, motionType: string) => {
         const query = `Based on the provided deep analysis, please draft a "${motionType}".`;
         setActiveAnalysisContext(analysisText);
-        setActiveReportContext(null); // Clear report context
+        setActiveReportContext(null);
         setInitialLegalQuery(query);
         setView('assistant');
-        setActiveInsightContext(null); // clear insight context
+        setActiveInsightContext(null);
     };
 
     const handleBackToTimeline = () => {
@@ -262,6 +319,10 @@ const App: React.FC = () => {
     };
 
     const handleAgentClick = () => {
+        if (subscriptionTier !== 'Pro') {
+            promptUpgrade('AI Voice Agent');
+            return;
+        }
         setIsAgentOpen(true);
     };
 
@@ -274,109 +335,92 @@ const App: React.FC = () => {
             selectedReportIds,
             onToggleReportSelection: handleToggleReportSelection,
         };
-        
-        const renderWithSuspense = (component: React.ReactElement) => (
-            <Suspense fallback={<LoadingFallback />}>
-                {component}
-            </Suspense>
-        );
-        
+        const commonAiProps = {
+            subscriptionTier,
+            hasSufficientTokens,
+            handleTokensUsed,
+            promptUpgrade,
+        };
         switch (view) {
             case 'dashboard':
-                return renderWithSuspense(
-                    <Dashboard 
-                        userProfile={userProfile}
-                        reports={reports}
-                        onViewChange={handleViewChange}
-                        onAnalyzeIncident={handleAnalyzeIncident}
-                    />
-                );
+                return <Dashboard 
+                            userProfile={userProfile}
+                            reports={reports}
+                            onViewChange={handleViewChange}
+                            onAnalyzeIncident={handleAnalyzeIncident}
+                        />;
             case 'new_report':
-                return renderWithSuspense(
-                    <ChatInterface 
-                        onReportGenerated={handleReportGenerated} 
-                        userProfile={userProfile}
-                        initialDate={newReportDate} 
-                        templates={incidentTemplates}
-                        onAddTemplate={handleAddTemplate}
-                        onDeleteTemplate={handleDeleteTemplate}
-                        onNavToTimeline={() => handleViewChange('timeline')}
-                    />
-                );
+                return <ChatInterface 
+                            onReportGenerated={handleReportGenerated} 
+                            userProfile={userProfile}
+                            initialDate={newReportDate} 
+                            templates={incidentTemplates}
+                            onAddTemplate={handleAddTemplate}
+                            onDeleteTemplate={handleDeleteTemplate}
+                            onNavToTimeline={() => handleViewChange('timeline')}
+                            {...commonAiProps}
+                        />;
             case 'messaging':
-                return renderWithSuspense(
-                    <Messaging 
-                        messages={messages}
-                        onSendMessage={handleSendMessage}
-                        userProfile={userProfile}
-                    />
-                );
+                return <Messaging 
+                            messages={messages}
+                            onSendMessage={handleSendMessage}
+                            userProfile={userProfile}
+                        />;
             case 'patterns':
-                return renderWithSuspense(
-                    <PatternAnalysis reports={reports} />
-                );
+                return <PatternAnalysis reports={reports} {...commonAiProps} />;
             case 'insights':
-                return renderWithSuspense(
-                    <DeepAnalysis 
-                        reports={reports} 
-                        userProfile={userProfile}
-                        activeInsightContext={activeInsightContext}
-                        onBackToTimeline={handleBackToTimeline}
-                        onGenerateDraft={handleGenerateDraftFromInsight}
-                        onAddDocument={handleAddDocument}
-                    />
-                );
+                return <DeepAnalysis 
+                            reports={reports} 
+                            userProfile={userProfile}
+                            activeInsightContext={activeInsightContext}
+                            onBackToTimeline={handleBackToTimeline}
+                            onGenerateDraft={handleGenerateDraftFromInsight}
+                            onAddDocument={handleAddDocument}
+                            {...commonAiProps}
+                        />;
             case 'documents':
-                return renderWithSuspense(
-                    <DocumentLibrary 
-                        documents={documents}
-                        onAddDocument={handleAddDocument}
-                        onDeleteDocument={handleDeleteDocument}
-                    />
-                );
+                return <DocumentLibrary 
+                            documents={documents}
+                            onAddDocument={handleAddDocument}
+                            onDeleteDocument={handleDeleteDocument}
+                        />;
             case 'assistant':
-                return renderWithSuspense(
-                    <LegalAssistant 
-                        reports={reports} 
-                        documents={documents}
-                        userProfile={userProfile}
-                        activeReportContext={activeReportContext}
-                        clearActiveReportContext={() => setActiveReportContext(null)}
-                        initialQuery={initialLegalQuery}
-                        clearInitialQuery={() => setInitialLegalQuery(null)}
-                        activeAnalysisContext={activeAnalysisContext}
-                        clearActiveAnalysisContext={() => setActiveAnalysisContext(null)}
-                        onAddDocument={handleAddDocument}
-                    />
-                );
+                return <LegalAssistant 
+                            reports={reports} 
+                            documents={documents}
+                            userProfile={userProfile}
+                            activeReportContext={activeReportContext}
+                            clearActiveReportContext={() => setActiveReportContext(null)}
+                            initialQuery={initialLegalQuery}
+                            clearInitialQuery={() => setInitialLegalQuery(null)}
+                            activeAnalysisContext={activeAnalysisContext}
+                            clearActiveAnalysisContext={() => setActiveAnalysisContext(null)}
+                            onAddDocument={handleAddDocument}
+                            onPromptConsultation={handlePromptConsultation}
+                            {...commonAiProps}
+                        />;
             case 'profile':
-                return renderWithSuspense(
-                    <UserProfile 
-                        onSave={handleProfileSave} 
-                        onCancel={() => handleViewChange('dashboard')}
-                        currentProfile={userProfile}
-                    />
-                );
+                return <UserProfile 
+                            onSave={handleProfileSave} 
+                            onCancel={() => handleViewChange('dashboard')}
+                            currentProfile={userProfile}
+                        />;
             case 'calendar':
-                return renderWithSuspense(
-                    <CalendarView 
-                        reports={reports}
-                        onDiscussIncident={handleDiscussIncident}
-                        onAnalyzeIncident={handleAnalyzeIncident}
-                        onDayClick={handleCalendarDayClick}
-                        {...selectionProps}
-                    />
-                );
+                return <CalendarView 
+                            reports={reports}
+                            onDiscussIncident={handleDiscussIncident}
+                            onAnalyzeIncident={handleAnalyzeIncident}
+                            onDayClick={handleCalendarDayClick}
+                            {...selectionProps}
+                        />;
             case 'timeline':
             default:
-                return renderWithSuspense(
-                    <IncidentTimeline 
-                        reports={reports} 
-                        onDiscussIncident={handleDiscussIncident}
-                        onAnalyzeIncident={handleAnalyzeIncident}
-                        {...selectionProps}
-                    />
-                );
+                return <IncidentTimeline 
+                            reports={reports} 
+                            onDiscussIncident={handleDiscussIncident}
+                            onAnalyzeIncident={handleAnalyzeIncident}
+                            {...selectionProps}
+                        />;
         }
     };
     
@@ -386,8 +430,7 @@ const App: React.FC = () => {
                 <div className="bg-white p-8 rounded-lg shadow-lg border border-red-200 max-w-md">
                     <h1 className="text-2xl font-bold text-red-800">Configuration Error</h1>
                     <p className="mt-2 text-red-700">The application is not configured correctly, and AI services are unavailable.</p>
-                    <p className="mt-4 text-sm text-gray-600">Please ensure the <code className="px-1 py-0.5 bg-gray-100 rounded">GEMINI_API_KEY</code> environment variable is set in your Vercel project settings.</p>
-                    <p className="mt-2 text-xs text-gray-500">Go to: Project Settings → Environment Variables → Add <code className="px-1 py-0.5 bg-gray-100 rounded">GEMINI_API_KEY</code></p>
+                    <p className="mt-4 text-sm text-gray-600">Please contact the administrator to ensure the API key is correctly set up in the deployment environment.</p>
                 </div>
             </div>
         );
@@ -403,14 +446,12 @@ const App: React.FC = () => {
     if (isInitialSetup) {
         return (
             <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-                <Suspense fallback={<LoadingFallback />}>
-                    <UserProfile 
-                        onSave={handleProfileSave} 
-                        onCancel={() => setView('dashboard')} // Takes them back to landing page
-                        currentProfile={null}
-                        isInitialSetup={true}
-                    />
-                </Suspense>
+                 <UserProfile 
+                    onSave={handleProfileSave} 
+                    onCancel={() => setView('dashboard')}
+                    currentProfile={null}
+                    isInitialSetup={true}
+                />
             </div>
         );
     }
@@ -437,6 +478,9 @@ const App: React.FC = () => {
                     onViewChange={handleViewChange} 
                     reportCount={reports.length}
                     isOpen={isSidebarOpen}
+                    subscriptionTier={subscriptionTier}
+                    tokenUsage={tokenUsage}
+                    onUpgradeClick={handleUpgradeClick}
                 />
                 <main className={`flex-1 p-4 sm:p-6 lg:p-8 ${isChatView ? 'flex flex-col' : 'overflow-y-auto'}`}>
                     <div className={`mx-auto max-w-7xl w-full ${isChatView ? 'flex-1 min-h-0' : ''}`}>
@@ -461,35 +505,40 @@ const App: React.FC = () => {
                     </button>
                 </div>
             )}
-            {isAgentOpen && (
-                <Suspense fallback={null}>
-                    <AgentChat
-                        isOpen={isAgentOpen}
-                        onClose={() => setIsAgentOpen(false)}
-                        onNavigate={(newView) => {
-                            handleViewChange(newView);
-                            setIsAgentOpen(false); // Close agent after navigation
-                        }}
-                        userProfile={userProfile}
-                    />
-                </Suspense>
-            )}
-            {isEvidenceBuilderOpen && (
-                <Suspense fallback={null}>
-                    <EvidencePackageBuilder
-                        isOpen={isEvidenceBuilderOpen}
-                        onClose={() => setIsEvidenceBuilderOpen(false)}
-                        selectedReports={reports.filter(r => selectedReportIds.has(r.id))}
-                        allDocuments={documents}
-                        userProfile={userProfile}
-                        onPackageCreated={() => {
-                            setIsEvidenceBuilderOpen(false);
-                            setSelectedReportIds(new Set());
-                        }}
-                        onAddDocument={handleAddDocument}
-                    />
-                </Suspense>
-            )}
+            <AgentChat
+                isOpen={isAgentOpen}
+                onClose={() => setIsAgentOpen(false)}
+                onNavigate={(newView) => {
+                    handleViewChange(newView);
+                    setIsAgentOpen(false);
+                }}
+                userProfile={userProfile}
+                {...{subscriptionTier, hasSufficientTokens, handleTokensUsed, promptUpgrade}}
+            />
+            <EvidencePackageBuilder
+                isOpen={isEvidenceBuilderOpen}
+                onClose={() => setIsEvidenceBuilderOpen(false)}
+                selectedReports={reports.filter(r => selectedReportIds.has(r.id))}
+                allDocuments={documents}
+                userProfile={userProfile}
+                onPackageCreated={() => {
+                    setIsEvidenceBuilderOpen(false);
+                    setSelectedReportIds(new Set());
+                }}
+                onAddDocument={handleAddDocument}
+                {...{subscriptionTier, hasSufficientTokens, handleTokensUsed, promptUpgrade}}
+            />
+            <UpgradeModal
+                isOpen={isUpgradeModalOpen}
+                onClose={() => setIsUpgradeModalOpen(false)}
+                onSwitchPlan={handleSwitchPlan}
+                currentTier={subscriptionTier}
+                featureName={upgradeFeatureContext}
+            />
+            <ConsultationModal 
+                isOpen={isConsultationModalOpen}
+                onClose={() => setIsConsultationModalOpen(false)}
+            />
         </div>
     );
 };

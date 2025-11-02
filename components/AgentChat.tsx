@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { connectToAgent, createPcmBlob, decode, decodeAudioData } from '../services/geminiService';
-import { UserProfile, View } from '../types';
+import { connectToAgent, createPcmBlob, decode, decodeAudioData, countAgentTokens } from '../services/geminiService';
+import { UserProfile, View, SubscriptionTier } from '../types';
 import { XMarkIcon, SparklesIcon } from './icons';
-// FIX: The '@google/genai' library exports 'Session', not 'LiveSession'.
 import { LiveServerMessage, Session } from '@google/genai';
 
 interface AgentChatProps {
@@ -10,11 +9,15 @@ interface AgentChatProps {
     onClose: () => void;
     onNavigate: (view: View) => void;
     userProfile: UserProfile | null;
+    subscriptionTier: SubscriptionTier;
+    hasSufficientTokens: () => boolean;
+    handleTokensUsed: (count: number) => void;
+    promptUpgrade: (featureName: string) => void;
 }
 
 type AgentStatus = "Idle" | "Connecting" | "Listening" | "Processing" | "Speaking" | "Error";
 
-const AgentChat: React.FC<AgentChatProps> = ({ isOpen, onClose, onNavigate, userProfile }) => {
+const AgentChat: React.FC<AgentChatProps> = ({ isOpen, onClose, onNavigate, userProfile, hasSufficientTokens, handleTokensUsed, promptUpgrade }) => {
     const [status, setStatus] = useState<AgentStatus>("Idle");
     const [transcript, setTranscript] = useState<{ role: 'user' | 'model', text: string }[]>([]);
     const [currentUserInput, setCurrentUserInput] = useState('');
@@ -28,6 +31,10 @@ const AgentChat: React.FC<AgentChatProps> = ({ isOpen, onClose, onNavigate, user
     const audioSourcesRef = useRef<Set<AudioBufferSourceNode>>(new Set());
     const nextStartTimeRef = useRef<number>(0);
     const transcriptContainerRef = useRef<HTMLDivElement>(null);
+    
+    // Refs to hold the most recent transcript parts for token counting
+    const finalUserInputRef = useRef('');
+    const finalModelOutputRef = useRef('');
 
     const handleClose = useCallback(() => {
         if (sessionPromiseRef.current) {
@@ -61,10 +68,17 @@ const AgentChat: React.FC<AgentChatProps> = ({ isOpen, onClose, onNavigate, user
     const startListening = async () => {
         if (status !== 'Idle' && status !== 'Error') return;
 
+        if (!hasSufficientTokens()) {
+            promptUpgrade("AI Voice Agent");
+            return;
+        }
+
         setStatus("Connecting");
         setTranscript([]);
         setCurrentUserInput('');
         setCurrentModelOutput('');
+        finalUserInputRef.current = '';
+        finalModelOutputRef.current = '';
 
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -108,19 +122,28 @@ const AgentChat: React.FC<AgentChatProps> = ({ isOpen, onClose, onNavigate, user
                     }
 
                     if (message.serverContent?.inputTranscription) {
-                        setCurrentUserInput(prev => prev + message.serverContent.inputTranscription.text);
+                        const text = message.serverContent.inputTranscription.text;
+                        setCurrentUserInput(prev => prev + text);
+                        finalUserInputRef.current += text;
                     }
                     if (message.serverContent?.outputTranscription) {
                         setStatus("Speaking");
-                        setCurrentModelOutput(prev => prev + message.serverContent.outputTranscription.text);
+                        const text = message.serverContent.outputTranscription.text;
+                        setCurrentModelOutput(prev => prev + text);
+                        finalModelOutputRef.current += text;
                     }
                      if (message.serverContent?.turnComplete) {
-                        const finalUserInput = currentUserInput + (message.serverContent?.inputTranscription?.text || '');
-                        const finalModelOutput = currentModelOutput + (message.serverContent?.outputTranscription?.text || '');
+                        setTranscript(prev => [...prev, { role: 'user', text: finalUserInputRef.current }, { role: 'model', text: finalModelOutputRef.current }]);
                         
-                        setTranscript(prev => [...prev, { role: 'user', text: finalUserInput }, { role: 'model', text: finalModelOutput }]);
+                        // Count tokens for the completed turn
+                        const turnText = `${finalUserInputRef.current} ${finalModelOutputRef.current}`;
+                        const tokens = await countAgentTokens(turnText);
+                        handleTokensUsed(tokens);
+
                         setCurrentUserInput('');
                         setCurrentModelOutput('');
+                        finalUserInputRef.current = '';
+                        finalModelOutputRef.current = '';
                         setStatus("Listening");
                     }
                     

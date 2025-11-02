@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Report, Theme, IncidentCategory } from '../types';
+import { Report, Theme, IncidentCategory, SubscriptionTier } from '../types';
 import { getThemeAnalysis } from '../services/geminiService';
 import { ChartBarIcon } from './icons';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
@@ -7,15 +7,18 @@ import { INCIDENT_CATEGORIES } from '../constants';
 
 interface PatternAnalysisProps {
     reports: Report[];
+    subscriptionTier: SubscriptionTier;
+    hasSufficientTokens: () => boolean;
+    handleTokensUsed: (count: number) => void;
+    promptUpgrade: (featureName: string) => void;
 }
 
-const PatternAnalysis: React.FC<PatternAnalysisProps> = ({ reports }) => {
+const PatternAnalysis: React.FC<PatternAnalysisProps> = ({ reports, hasSufficientTokens, handleTokensUsed, promptUpgrade }) => {
     const [selectedCategory, setSelectedCategory] = useState<IncidentCategory | 'all'>('all');
     const [themes, setThemes] = useState<Theme[]>([]);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    // FIX: Use the imported constant to ensure correct typing.
     const incidentCategories = INCIDENT_CATEGORIES;
 
     useEffect(() => {
@@ -24,6 +27,13 @@ const PatternAnalysis: React.FC<PatternAnalysisProps> = ({ reports }) => {
                 setThemes([]);
                 return;
             }
+
+            if (!hasSufficientTokens()) {
+                promptUpgrade("Pattern Analysis");
+                setSelectedCategory('all');
+                return;
+            }
+
             const filteredReports = reports.filter(r => r.category === selectedCategory);
             if (filteredReports.length < 2) {
                 setThemes([]);
@@ -35,7 +45,8 @@ const PatternAnalysis: React.FC<PatternAnalysisProps> = ({ reports }) => {
             setError(null);
             try {
                 const result = await getThemeAnalysis(filteredReports, selectedCategory);
-                setThemes(result);
+                handleTokensUsed(result.tokensUsed);
+                setThemes(result.themes);
             } catch (err) {
                 setError("An error occurred while analyzing themes.");
                 console.error(err);
@@ -45,7 +56,7 @@ const PatternAnalysis: React.FC<PatternAnalysisProps> = ({ reports }) => {
         };
 
         analyzeThemes();
-    }, [selectedCategory, reports]);
+    }, [selectedCategory, reports, hasSufficientTokens, handleTokensUsed, promptUpgrade]);
     
     const categoryCounts = incidentCategories.reduce((acc, category) => {
         acc[category] = reports.filter(r => r.category === category).length;

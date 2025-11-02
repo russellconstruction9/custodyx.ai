@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Report, UserProfile, StoredDocument, DocumentFolder } from '../types';
+import { Report, UserProfile, StoredDocument, DocumentFolder, SubscriptionTier } from '../types';
 import { getSingleIncidentAnalysis } from '../services/geminiService';
 import { LightBulbIcon, ArrowLeftIcon, ScaleIcon } from './icons';
 import ReactMarkdown from 'react-markdown';
@@ -11,9 +11,17 @@ interface DeepAnalysisProps {
     onBackToTimeline: () => void;
     onGenerateDraft: (analysisText: string, motionType: string) => void;
     onAddDocument: (document: StoredDocument) => void;
+    // Token & Subscription Props
+    subscriptionTier: SubscriptionTier;
+    hasSufficientTokens: () => boolean;
+    handleTokensUsed: (count: number) => void;
+    promptUpgrade: (featureName: string) => void;
 }
 
-const DeepAnalysis: React.FC<DeepAnalysisProps> = ({ reports, userProfile, activeInsightContext, onBackToTimeline, onGenerateDraft, onAddDocument }) => {
+const DeepAnalysis: React.FC<DeepAnalysisProps> = ({ 
+    reports, userProfile, activeInsightContext, onBackToTimeline, onGenerateDraft, onAddDocument,
+    hasSufficientTokens, handleTokensUsed, promptUpgrade
+}) => {
     const [analysisResult, setAnalysisResult] = useState<{ analysis: string; sources: any[] } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
@@ -27,38 +35,36 @@ const DeepAnalysis: React.FC<DeepAnalysisProps> = ({ reports, userProfile, activ
         }
 
         const fetchInsights = async () => {
+            if (!hasSufficientTokens()) {
+                promptUpgrade("Deep Analysis");
+                onBackToTimeline(); // Go back if they can't use the feature
+                return;
+            }
+
             setIsLoading(true);
             setError(null);
             setRecommendedMotion(null);
             setAnalysisResult(null);
             try {
                 const result = await getSingleIncidentAnalysis(activeInsightContext, reports, userProfile);
+                handleTokensUsed(result.tokensUsed);
                 setAnalysisResult(result);
 
-                // Save the analysis to the document library
                 const analysisText = result.analysis;
                 const docName = `Forensic Analysis - ${new Date(activeInsightContext.createdAt).toLocaleDateString()}.md`;
                 const newDoc: StoredDocument = {
                     id: `doc_analysis_${Date.now()}`,
                     name: docName,
                     mimeType: 'text/markdown',
-                    // Correctly encode UTF-8 string to base64
                     data: btoa(unescape(encodeURIComponent(analysisText))),
                     createdAt: new Date().toISOString(),
                     folder: DocumentFolder.FORENSIC_ANALYSES,
                 };
                 onAddDocument(newDoc);
 
-                // Parse for the recommended motion
-                const lines = result.analysis.split('\n');
-                const motionLine = lines.find(line => line.includes('Motion to') || line.includes('Motion for'));
-                if (motionLine) {
-                    // FIX: Updated regex to be more flexible. It captures "Motion to..." or "Motion for..."
-                    // and removes the start-of-line anchor (^) to work within bullet points.
-                    const motionMatch = motionLine.match(/(Motion (to|for) [a-zA-Z\s]+)/);
-                    if (motionMatch && motionMatch[0]) {
-                        setRecommendedMotion(motionMatch[0].trim());
-                    }
+                const motionMatch = analysisText.match(/(Motion (to|for) [a-zA-Z\s]+)/);
+                if (motionMatch && motionMatch[0]) {
+                    setRecommendedMotion(motionMatch[0].trim());
                 }
 
             } catch (err) {
@@ -70,7 +76,7 @@ const DeepAnalysis: React.FC<DeepAnalysisProps> = ({ reports, userProfile, activ
         };
 
         fetchInsights();
-    }, [activeInsightContext, reports, userProfile, onAddDocument]);
+    }, [activeInsightContext, reports, userProfile, onAddDocument, hasSufficientTokens, promptUpgrade, handleTokensUsed, onBackToTimeline]);
     
     if (!activeInsightContext) {
         return (

@@ -1,5 +1,11 @@
-import { IncidentCategory } from './types';
+import { IncidentCategory, SubscriptionTier } from './types';
 import { INDIANA_LEGAL_CONTEXT } from './constants/legalContext';
+
+export const TOKEN_LIMITS: Record<SubscriptionTier, number> = {
+    Free: 50000,
+    Plus: 500000,
+    Pro: 5000000,
+};
 
 export const SYSTEM_PROMPT_CHAT = `You are an AI documentation assistant for co-parenting incidents. Your persona is an empathetic, patient, and structured guide. Your primary goal is to help the user create a neutral, factual record of an event without overwhelming them.
 {USER_PROFILE_CONTEXT}

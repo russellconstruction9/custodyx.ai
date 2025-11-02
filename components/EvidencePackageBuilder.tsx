@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Report, StoredDocument, UserProfile, StructuredLegalDocument, DocumentFolder } from '../types';
+import { Report, StoredDocument, UserProfile, StructuredLegalDocument, DocumentFolder, SubscriptionTier } from '../types';
 import { generateEvidencePackage } from '../services/geminiService';
 import { XMarkIcon, SparklesIcon, ClipboardDocumentIcon, CheckIcon, DocumentTextIcon, PrinterIcon, ArrowLeftIcon } from './icons';
 import PdfPreview from './PdfPreview';
@@ -12,6 +12,11 @@ interface EvidencePackageBuilderProps {
     userProfile: UserProfile | null;
     onPackageCreated: () => void;
     onAddDocument: (document: StoredDocument) => void;
+    // Token & Subscription Props
+    subscriptionTier: SubscriptionTier;
+    hasSufficientTokens: () => boolean;
+    handleTokensUsed: (count: number) => void;
+    promptUpgrade: (featureName: string) => void;
 }
 
 const documentToPlainText = (doc: StructuredLegalDocument | null): string => {
@@ -61,7 +66,10 @@ const LoadingState: React.FC = () => {
 };
 
 
-const EvidencePackageBuilder: React.FC<EvidencePackageBuilderProps> = ({ isOpen, onClose, selectedReports, allDocuments, userProfile, onPackageCreated, onAddDocument }) => {
+const EvidencePackageBuilder: React.FC<EvidencePackageBuilderProps> = ({ 
+    isOpen, onClose, selectedReports, allDocuments, userProfile, onPackageCreated, onAddDocument,
+    hasSufficientTokens, handleTokensUsed, promptUpgrade
+}) => {
     const [step, setStep] = useState(1);
     const [selectedDocumentIds, setSelectedDocumentIds] = useState<Set<string>>(new Set());
     const [packageObjective, setPackageObjective] = useState('');
@@ -71,7 +79,6 @@ const EvidencePackageBuilder: React.FC<EvidencePackageBuilderProps> = ({ isOpen,
 
     useEffect(() => {
         if (isOpen) {
-            // Reset state when modal opens
             setStep(1);
             setSelectedDocumentIds(new Set());
             setGeneratedPackage(null);
@@ -100,22 +107,28 @@ const EvidencePackageBuilder: React.FC<EvidencePackageBuilderProps> = ({ isOpen,
             alert("Please provide a strategic objective.");
             return;
         }
+        if (!hasSufficientTokens()) {
+            promptUpgrade("Evidence Package Builder");
+            return;
+        }
+
         setIsLoading(true);
         const selectedDocuments = allDocuments.filter(doc => selectedDocumentIds.has(doc.id));
         try {
-            const result = await generateEvidencePackage(selectedReports, selectedDocuments, userProfile, packageObjective);
-            if (result) {
-                setGeneratedPackage(result);
-                // Save package to document library
-                const plainText = documentToPlainText(result);
+            const { evidencePackage, tokensUsed } = await generateEvidencePackage(selectedReports, selectedDocuments, userProfile, packageObjective);
+            handleTokensUsed(tokensUsed);
+
+            if (evidencePackage) {
+                setGeneratedPackage(evidencePackage);
+                const plainText = documentToPlainText(evidencePackage);
                 const newDoc: StoredDocument = {
                     id: `doc_pkg_${Date.now()}`,
-                    name: `${result.title}.txt`,
+                    name: `${evidencePackage.title}.txt`,
                     mimeType: 'text/plain',
                     data: btoa(unescape(encodeURIComponent(plainText))),
                     createdAt: new Date().toISOString(),
                     folder: DocumentFolder.EVIDENCE_PACKAGES,
-                    structuredData: result,
+                    structuredData: evidencePackage,
                 };
                 onAddDocument(newDoc);
             } else {

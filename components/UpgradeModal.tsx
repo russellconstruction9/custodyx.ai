@@ -5,7 +5,7 @@ import { XMarkIcon, CheckIcon, SparklesIcon } from './icons';
 interface UpgradeModalProps {
     isOpen: boolean;
     onClose: () => void;
-    onUpgrade: (tier: SubscriptionTier) => void;
+    onSwitchPlan: (tier: SubscriptionTier) => void;
     currentTier: SubscriptionTier;
     featureName?: string;
 }
@@ -20,7 +20,6 @@ const tiers = {
             'Timeline & Calendar Views',
             'Dashboard Overview',
         ],
-        buttonText: 'Your Current Plan',
     },
     Plus: {
         name: 'Plus',
@@ -30,9 +29,8 @@ const tiers = {
             'All Free features, plus:',
             'Pattern Analysis',
             'Document Library',
-            'AI Legal Assistant',
+            'AI Legal Assistant (Q&A Only)',
         ],
-        buttonText: 'Upgrade to Plus',
     },
     Pro: {
         name: 'Pro',
@@ -43,12 +41,12 @@ const tiers = {
             'Deep Forensic Analysis',
             'Evidence Package Builder',
             'AI Voice Agent',
+            'Premium Document Generation (add-on, $150-$500 per package)',
         ],
-        buttonText: 'Upgrade to Pro',
     },
 };
 
-const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, onUpgrade, currentTier, featureName }) => {
+const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, onSwitchPlan, currentTier, featureName }) => {
     if (!isOpen) return null;
 
     return (
@@ -64,8 +62,8 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, onUpgrade,
             >
                 <header className="flex justify-between items-center p-4 sm:p-6 border-b border-gray-200">
                     <div>
-                         <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Upgrade Your Plan</h2>
-                         {featureName && <p className="text-sm text-gray-600 mt-1">The "{featureName}" feature requires an upgraded plan.</p>}
+                         <h2 className="text-xl sm:text-2xl font-bold text-gray-900">Manage Your Plan</h2>
+                         {featureName && <p className="text-sm text-gray-600 mt-1">Access to "{featureName}" requires a different plan.</p>}
                     </div>
                     <button onClick={onClose} className="p-2 rounded-full text-gray-500 hover:bg-gray-100" aria-label="Close modal">
                         <XMarkIcon className="w-6 h-6" />
@@ -75,7 +73,6 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, onUpgrade,
                     {(Object.keys(tiers) as SubscriptionTier[]).map(tierKey => {
                         const tier = tiers[tierKey];
                         const isCurrent = currentTier === tierKey;
-                        const isBelowCurrent = (tierKey === 'Free' && currentTier !== 'Free') || (tierKey === 'Plus' && currentTier === 'Pro');
 
                         return (
                             <div key={tier.name} className={`rounded-lg border p-6 flex flex-col ${isCurrent ? 'bg-blue-50 border-blue-500 ring-2 ring-blue-500' : 'bg-white border-gray-200'}`}>
@@ -95,21 +92,19 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, onUpgrade,
                                 </ul>
                                 <div className="mt-6">
                                     <button
-                                        onClick={() => onUpgrade(tierKey)}
-                                        disabled={isCurrent || isBelowCurrent}
+                                        onClick={() => onSwitchPlan(tierKey)}
+                                        disabled={isCurrent}
                                         className={`w-full flex items-center justify-center px-4 py-2.5 text-sm font-semibold rounded-md shadow-sm transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 
-                                            ${isCurrent ? 'bg-blue-800 text-white' : ''}
-                                            ${!isCurrent && !isBelowCurrent ? 'bg-blue-950 text-white hover:bg-blue-800' : ''}
-                                            ${isBelowCurrent ? 'bg-gray-200 text-gray-500 cursor-default' : ''}
+                                            ${isCurrent ? 'bg-blue-800 text-white cursor-default' : 'bg-blue-950 text-white hover:bg-blue-800'}
                                         `}
                                     >
                                         {isCurrent ? (
                                             <>
                                                 <SparklesIcon className="w-5 h-5 mr-2" />
-                                                {tier.buttonText}
+                                                <span>Current Plan</span>
                                             </>
                                         ) : (
-                                            tier.buttonText
+                                            `Switch to ${tier.name}`
                                         )}
                                     </button>
                                 </div>
@@ -118,7 +113,7 @@ const UpgradeModal: React.FC<UpgradeModalProps> = ({ isOpen, onClose, onUpgrade,
                     })}
                 </main>
                  <footer className="p-4 bg-white border-t border-gray-200 text-center">
-                    <p className="text-xs text-gray-500">This is a simulated billing interface. Upgrades are applied instantly for demonstration purposes.</p>
+                    <p className="text-xs text-gray-500">This is a simulated billing interface. Plan changes are applied instantly for demonstration purposes.</p>
                 </footer>
             </div>
         </div>

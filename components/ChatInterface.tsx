@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
-import { ChatMessage, Report, GeneratedReportData, UserProfile, IncidentTemplate } from '../types';
+import { ChatMessage, Report, GeneratedReportData, UserProfile, IncidentTemplate, SubscriptionTier } from '../types';
 import { getChatResponse, generateJsonReport } from '../services/geminiService';
 import { PaperAirplaneIcon, PaperClipIcon, SparklesIcon, UserCircleIcon, CalendarDaysIcon, CheckCircleIcon, TagIcon, TrashIcon } from './icons';
 import Calendar from './Calendar';
@@ -12,6 +12,11 @@ interface ChatInterfaceProps {
     onAddTemplate: (template: IncidentTemplate) => void;
     onDeleteTemplate: (templateId: string) => void;
     onNavToTimeline: () => void;
+    // Token & Subscription Props
+    subscriptionTier: SubscriptionTier;
+    hasSufficientTokens: () => boolean;
+    handleTokensUsed: (count: number) => void;
+    promptUpgrade: (featureName: string) => void;
 }
 
 const fileToBase64 = (file: File): Promise<string> =>
@@ -23,7 +28,10 @@ const fileToBase64 = (file: File): Promise<string> =>
     });
 
 
-const ChatInterface: React.FC<ChatInterfaceProps> = ({ onReportGenerated, userProfile, initialDate, templates, onAddTemplate, onDeleteTemplate, onNavToTimeline }) => {
+const ChatInterface: React.FC<ChatInterfaceProps> = ({ 
+    onReportGenerated, userProfile, initialDate, templates, onAddTemplate, onDeleteTemplate, onNavToTimeline,
+    hasSufficientTokens, handleTokensUsed, promptUpgrade
+}) => {
     const [messages, setMessages] = useState<ChatMessage[]>([
         { role: 'model', content: "Hello, I'm here to help you document a co-parenting incident. To start, please describe what happened." }
     ]);
@@ -49,7 +57,6 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onReportGenerated, userPr
     }, [messages, isLoading]);
 
     useEffect(() => {
-        // If the calendar is closed and we were trying to apply a template, cancel the action.
         if (!isCalendarOpen && templateToApply) {
             setTemplateToApply(null);
         }
@@ -71,6 +78,11 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onReportGenerated, userPr
         event?.preventDefault();
         if (!input.trim() && uploadedFiles.length === 0) return;
 
+        if (!hasSufficientTokens()) {
+            promptUpgrade("AI Chat");
+            return;
+        }
+
         const isFirstUserMessage = messages.filter(m => m.role === 'user').length === 0;
         let contentToSend = input;
         if (isFirstUserMessage && selectedDate) {
@@ -90,15 +102,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onReportGenerated, userPr
         setUploadedFiles([]);
 
         try {
-            const response = await getChatResponse(newMessages, userProfile);
-            setMessages(prev => [...prev, { role: 'model', content: response }]);
+            const { text, tokensUsed } = await getChatResponse(newMessages, userProfile);
+            handleTokensUsed(tokensUsed);
+            setMessages(prev => [...prev, { role: 'model', content: text }]);
         } catch (error) {
             console.error(error);
             setMessages(prev => [...prev, { role: 'model', content: "Sorry, an error occurred." }]);
         } finally {
             setIsLoading(false);
         }
-    }, [input, messages, uploadedFiles, selectedDate, userProfile]);
+    }, [input, messages, uploadedFiles, selectedDate, userProfile, hasSufficientTokens, promptUpgrade, handleTokensUsed]);
     
     const handleDateSelect = (date: Date) => {
         setSelectedDate(date);
@@ -112,7 +125,7 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onReportGenerated, userPr
                 category: templateToApply.category,
                 tags: templateToApply.tags,
                 legalContext: templateToApply.legalContext,
-                images: [], // No images for template-based reports
+                images: [],
             };
             onReportGenerated(newReport);
             setTemplateToApply(null);
@@ -136,9 +149,16 @@ const ChatInterface: React.FC<ChatInterfaceProps> = ({ onReportGenerated, userPr
     };
 
     const handleGenerateReport = async () => {
+        if (!hasSufficientTokens()) {
+            promptUpgrade("AI Report Generation");
+            return;
+        }
+
         setIsGeneratingReport(true);
         try {
-            const reportData: GeneratedReportData | null = await generateJsonReport(messages, userProfile);
+            const { reportData, tokensUsed } = await generateJsonReport(messages, userProfile);
+            handleTokensUsed(tokensUsed);
+
             if (reportData) {
                 const allImagesFromChat = messages
                     .flatMap(m => m.images || [])
