@@ -17,6 +17,7 @@ import Messaging from './components/Messaging';
 import UpgradeModal from './components/UpgradeModal';
 import ConsultationModal from './components/ConsultationModal';
 import NetlifyForm from './components/NetlifyForm';
+import OnboardingInfo from './components/OnboardingInfo';
 import { Report, UserProfile as UserProfileType, StoredDocument, View, IncidentTemplate, CoParentMessage, SubscriptionTier, TokenUsage } from './types';
 import { TOKEN_LIMITS } from './constants';
 import { SparklesIcon } from './components/icons';
@@ -418,7 +419,15 @@ const App: React.FC = () => {
         if (view === 'netlify_form') {
             return (
                 <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-                    <NetlifyForm onFormSubmit={() => setView('profile')} />
+                    <NetlifyForm onFormSubmit={() => setView('onboarding_info')} />
+                </div>
+            );
+        }
+
+        if (view === 'onboarding_info') {
+            return (
+                 <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+                    <OnboardingInfo onContinue={() => setView('profile')} />
                 </div>
             );
         }
