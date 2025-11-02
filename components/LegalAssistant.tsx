@@ -1,7 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Report, UserProfile, StoredDocument, StructuredLegalDocument, DocumentFolder, SubscriptionTier } from '../types';
 import { getLegalAssistantResponse, getInitialLegalAnalysis, analyzeDocument, redraftDocument } from '../services/geminiService';
-// FIX: Imported the missing ScaleIcon component.
 import { PaperAirplaneIcon, SparklesIcon, UserCircleIcon, DocumentTextIcon, LightBulbIcon, XMarkIcon, ScaleIcon } from './icons';
 import MotionPreviewModal from './MotionPreviewModal';
 import ReactMarkdown from 'react-markdown';

@@ -81,9 +81,6 @@ const DocumentLibrary: React.FC<DocumentLibraryProps> = ({ documents, onAddDocum
         
         setIsLoading(true);
         try {
-            // FIX: Correctly type `file` as `File` by iterating over an explicitly created array.
-            // This resolves type errors where `file` was being inferred as `unknown`.
-            // Using Promise.all also processes multiple file uploads concurrently.
             await Promise.all(Array.from(files).map(async (file: File) => {
                 const base64Data = await fileToBase64(file);
                 const newDocument: StoredDocument = {

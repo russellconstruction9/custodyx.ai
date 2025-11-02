@@ -98,18 +98,9 @@ const App: React.FC = () => {
     const [selectedReportIds, setSelectedReportIds] = useState<Set<string>>(new Set());
     const [isEvidenceBuilderOpen, setIsEvidenceBuilderOpen] = useState(false);
     const [newReportDate, setNewReportDate] = useState<Date | null>(null);
-    const [isConfigError, setIsConfigError] = useState(false);
     const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false);
     const [upgradeFeatureContext, setUpgradeFeatureContext] = useState<string | undefined>(undefined);
     const [isConsultationModalOpen, setIsConsultationModalOpen] = useState(false);
-
-
-    useEffect(() => {
-        if (!process.env.API_KEY) {
-            console.error("Configuration Error: API_KEY is not defined in the environment. AI features will be disabled.");
-            setIsConfigError(true);
-        }
-    }, []);
 
     // Save data to localStorage whenever it changes
     useEffect(() => { localStorage.setItem('reports', JSON.stringify(reports)); }, [reports]);
@@ -420,18 +411,6 @@ const App: React.FC = () => {
                         />;
         }
     };
-    
-    if (isConfigError) {
-        return (
-            <div className="bg-red-50 min-h-screen flex items-center justify-center p-4 text-center">
-                <div className="bg-white p-8 rounded-lg shadow-lg border border-red-200 max-w-md">
-                    <h1 className="text-2xl font-bold text-red-800">Configuration Error</h1>
-                    <p className="mt-2 text-red-700">The application is not configured correctly, and AI services are unavailable.</p>
-                    <p className="mt-4 text-sm text-gray-600">Please contact the administrator to ensure the API key is correctly set up in the deployment environment.</p>
-                </div>
-            </div>
-        );
-    }
 
     const isUserOnboarded = !!userProfile;
 
