@@ -9,12 +9,15 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/genai": "^1.28.0",
+    "@netlify/functions": "^5.0.1",
+    "@types/pg": "^8.15.6",
+    "dotenv": "^17.2.3",
+    "pg": "^8.16.3",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "recharts": "^2.13.0",
     "react-markdown": "^10.1.0",
-    "@netlify/functions": "^5.0.1",
-    "@google/genai": "^1.28.0"
+    "recharts": "^2.13.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
