@@ -1,13 +1,12 @@
-const CACHE_NAME = 'custodyx-ai-v1';
-// The URLs we want to cache. This includes the app shell and core assets.
+const CACHE_NAME = 'custodyx-ai-v2'; // Bumped version to ensure new service worker is installed
 const URLS_TO_CACHE = [
   '/',
   '/index.html',
   '/index.tsx',
   '/manifest.json',
   '/icon.svg',
-  // External assets from CDN - requires CORS support from the CDN
-  'https://aistudiocdn.com/@google/genai@^1.22.0',
+  '/icon-192.png',
+  '/icon-512.png',
   'https://aistudiocdn.com/react@^19.2.0',
   'https://aistudiocdn.com/react-dom@^19.2.0/',
   'https://aistudiocdn.com/recharts@^2.13.0',
@@ -16,25 +15,16 @@ const URLS_TO_CACHE = [
   'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
 ];
 
-// Install the service worker and cache the app shell
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
         console.log('Opened cache and caching app shell');
-        // Use addAll for atomic caching. If one fails, none are added.
-        return cache.addAll(URLS_TO_CACHE).catch(err => {
-            console.error('Failed to cache files during install:', err);
-            // It's important to see which URLs failed.
-            URLS_TO_CACHE.forEach(url => {
-                fetch(url).catch(e => console.error(`Failed to fetch ${url}`, e));
-            });
-        });
+        return cache.addAll(URLS_TO_CACHE);
       })
   );
 });
 
-// Activate the service worker and remove old caches
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((cacheNames) => {
@@ -51,43 +41,45 @@ self.addEventListener('activate', (event) => {
   return self.clients.claim();
 });
 
-// Intercept fetch requests and serve from cache if available (cache-first strategy)
 self.addEventListener('fetch', (event) => {
-  // We only want to cache GET requests.
   if (event.request.method !== 'GET') {
-      return;
+    return;
   }
 
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        // Cache hit - return response
-        if (response) {
+  // Strategy: Network-first for navigation requests (HTML pages).
+  // This ensures the user gets the latest version of the app shell.
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then(response => {
+          // If fetch is successful, cache the new response.
+          const responseToCache = response.clone();
+          caches.open(CACHE_NAME).then(cache => {
+            cache.put(event.request, responseToCache);
+          });
           return response;
-        }
+        })
+        .catch(() => {
+          // If the network fails, serve the main page from the cache.
+          return caches.match('/');
+        })
+    );
+    return;
+  }
 
-        // Not in cache - fetch from network, then cache it
-        return fetch(event.request).then(
-          (response) => {
-            // Check if we received a valid response
-            if(!response || response.status !== 200) {
-              return response;
-            }
-
-            // IMPORTANT: Clone the response. A response is a stream
-            // and because we want the browser to consume the response
-            // as well as the cache consuming the response, we need
-            // to clone it so we have two streams.
-            var responseToCache = response.clone();
-
-            caches.open(CACHE_NAME)
-              .then((cache) => {
-                cache.put(event.request, responseToCache);
-              });
-
-            return response;
-          }
-        );
-      })
+  // Strategy: Cache-first for all other assets (JS, CSS, images, fonts).
+  // These assets are less likely to change frequently.
+  event.respondWith(
+    caches.match(event.request).then(response => {
+      // Return cached response if found.
+      // Otherwise, fetch from the network, cache it, and then return it.
+      return response || fetch(event.request).then(fetchResponse => {
+        const responseToCache = fetchResponse.clone();
+        caches.open(CACHE_NAME).then(cache => {
+          cache.put(event.request, responseToCache);
+        });
+        return fetchResponse;
+      });
+    })
   );
 });
