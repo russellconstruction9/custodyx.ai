@@ -16,6 +16,7 @@ import AgentChat from './components/AgentChat';
 import Messaging from './components/Messaging';
 import UpgradeModal from './components/UpgradeModal';
 import ConsultationModal from './components/ConsultationModal';
+import NetlifyForm from './components/NetlifyForm';
 import { Report, UserProfile as UserProfileType, StoredDocument, View, IncidentTemplate, CoParentMessage, SubscriptionTier, TokenUsage } from './types';
 import { TOKEN_LIMITS } from './constants';
 import { SparklesIcon } from './components/icons';
@@ -314,10 +315,6 @@ const App: React.FC = () => {
         setSelectedReportIds(new Set());
     };
 
-    const handleGetStarted = () => {
-        setView('profile');
-    };
-
     const handleAgentClick = () => {
         if (subscriptionTier !== 'Pro') {
             promptUpgrade('AI Voice Agent');
@@ -437,23 +434,30 @@ const App: React.FC = () => {
     }
 
     const isUserOnboarded = !!userProfile;
-    const isInitialSetup = !isUserOnboarded && view === 'profile';
 
-    if (!isUserOnboarded && view !== 'profile') {
-        return <LandingPage onGetStarted={handleGetStarted} />;
-    }
-    
-    if (isInitialSetup) {
-        return (
-            <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4">
-                 <UserProfile 
-                    onSave={handleProfileSave} 
-                    onCancel={() => setView('dashboard')}
-                    currentProfile={null}
-                    isInitialSetup={true}
-                />
-            </div>
-        );
+    if (!isUserOnboarded) {
+        if (view === 'netlify_form') {
+            return (
+                <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+                    <NetlifyForm onFormSubmit={() => setView('profile')} />
+                </div>
+            );
+        }
+        
+        if (view === 'profile') {
+            return (
+                <div className="bg-gray-100 min-h-screen flex items-center justify-center p-4">
+                     <UserProfile 
+                        onSave={handleProfileSave} 
+                        onCancel={() => setView('dashboard')}
+                        currentProfile={null}
+                        isInitialSetup={true}
+                    />
+                </div>
+            );
+        }
+
+        return <LandingPage onGetStarted={() => setView('netlify_form')} />;
     }
 
     const isChatView = view === 'new_report' || view === 'assistant' || view === 'messaging';

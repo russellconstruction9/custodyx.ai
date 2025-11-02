@@ -103,4 +103,4 @@ export interface TokenUsage {
   resetDate: string; // ISO string
 }
 
-export type View = 'dashboard' | 'timeline' | 'new_report' | 'patterns' | 'insights' | 'assistant' | 'profile' | 'documents' | 'calendar' | 'messaging';
+export type View = 'dashboard' | 'timeline' | 'new_report' | 'patterns' | 'insights' | 'assistant' | 'profile' | 'documents' | 'calendar' | 'messaging' | 'netlify_form';
