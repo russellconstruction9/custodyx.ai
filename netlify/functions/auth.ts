@@ -5,9 +5,6 @@ import crypto from 'crypto';
 // Database connection for Netlify functions
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  }
 });
 
 interface DbUser {
@@ -49,6 +46,9 @@ const getUserByEmail = async (email: string): Promise<DbUser | null> => {
   try {
     const result = await client.query('SELECT * FROM users WHERE email = $1', [email]);
     return result.rows.length > 0 ? result.rows[0] : null;
+  } catch (error) {
+    console.error('Error getting user by email:', error);
+    throw error;
   } finally {
     client.release();
   }

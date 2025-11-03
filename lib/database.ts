@@ -3,9 +3,6 @@ import { Pool, PoolClient } from 'pg';
 // Database configuration
 const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl: {
-    rejectUnauthorized: false
-  },
   max: 20, // Maximum number of clients in the pool
   idleTimeoutMillis: 30000, // Close clients after 30 seconds of inactivity
   connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
