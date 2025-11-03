@@ -2,16 +2,19 @@ import { StackClientApp, StackServerApp } from '@stackframe/stack';
 
 // Initialize Stack Auth for client-side
 export const stackClientApp = new StackClientApp({
-  tokenStore: 'nextjs-cookie'
+  projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
+  publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
 });
 
 // Initialize Stack Auth for server-side  
 export const stackServerApp = new StackServerApp({
-  tokenStore: 'nextjs-cookie'
+  projectId: process.env.NEXT_PUBLIC_STACK_PROJECT_ID!,
+  publishableClientKey: process.env.NEXT_PUBLIC_STACK_PUBLISHABLE_CLIENT_KEY!,
+  secretServerKey: process.env.STACK_SECRET_SERVER_KEY!,
 });
 
-// Auth utilities for client-side React components
-export const useAuth = () => {
+// Stack Auth utilities for React components
+export const useStackAuth = () => {
   const user = stackClientApp.useUser();
   
   return {

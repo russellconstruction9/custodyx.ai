@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { UserProfile as UserProfileType } from '../types';
+import { useAuth } from './AuthContext';
 import { XMarkIcon } from './icons';
 
 interface UserProfileProps {
@@ -10,6 +11,7 @@ interface UserProfileProps {
 }
 
 const UserProfile: React.FC<UserProfileProps> = ({ onSave, onCancel, currentProfile, isInitialSetup }) => {
+    const { user, updateUser, logout } = useAuth();
     const [name, setName] = useState('');
     const [role, setRole] = useState<'Mother' | 'Father' | ''>('');
     const [children, setChildren] = useState<string[]>(['']);
@@ -19,8 +21,12 @@ const UserProfile: React.FC<UserProfileProps> = ({ onSave, onCancel, currentProf
             setName(currentProfile.name || '');
             setRole(currentProfile.role || '');
             setChildren(currentProfile.children.length > 0 ? currentProfile.children : ['']);
+        } else if (user) {
+            setName(user.displayName || '');
+            setRole(user.role || '');
+            setChildren(user.children.length > 0 ? user.children : ['']);
         }
-    }, [currentProfile]);
+    }, [currentProfile, user]);
 
     const handleChildChange = (index: number, value: string) => {
         const newChildren = [...children];
@@ -47,7 +53,21 @@ const UserProfile: React.FC<UserProfileProps> = ({ onSave, onCancel, currentProf
             role,
             children: children.filter(c => c.trim() !== ''),
         };
+        
+        // Update the auth context with new profile data
+        if (user) {
+            updateUser({
+                displayName: name,
+                role,
+                children: profileData.children,
+            });
+        }
+        
         onSave(profileData);
+    };
+
+    const handleLogout = async () => {
+        await logout();
     };
 
     return (
@@ -122,21 +142,31 @@ const UserProfile: React.FC<UserProfileProps> = ({ onSave, onCancel, currentProf
                 </div>
             </div>
 
-            <div className="mt-8 pt-5 border-t border-gray-200 flex justify-end gap-3">
-                {!isInitialSetup && (
+            <div className="mt-8 pt-5 border-t border-gray-200">
+                <div className="flex justify-between items-center">
                     <button
-                        onClick={onCancel}
-                        className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        onClick={handleLogout}
+                        className="px-4 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-md hover:bg-red-100 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
                     >
-                        Cancel
+                        Sign Out
                     </button>
-                )}
-                <button
-                    onClick={handleSave}
-                    className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-blue-950 rounded-md shadow-sm hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                >
-                    {isInitialSetup ? 'Save and Continue' : 'Save Profile'}
-                </button>
+                    <div className="flex gap-3">
+                        {!isInitialSetup && (
+                            <button
+                                onClick={onCancel}
+                                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                            >
+                                Cancel
+                            </button>
+                        )}
+                        <button
+                            onClick={handleSave}
+                            className="flex items-center px-4 py-2 text-sm font-semibold text-white bg-blue-950 rounded-md shadow-sm hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                        >
+                            {isInitialSetup ? 'Save and Continue' : 'Save Profile'}
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     );
