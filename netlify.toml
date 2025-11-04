@@ -5,8 +5,8 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  # Disable secrets scanning as we're using VITE_ prefixed variables which are meant to be public
-  SECRETS_SCAN_ENABLED = "false"
+  # Configure secrets scanning to ignore documentation and example files
+  SECRETS_SCAN_OMIT_PATHS = ".env.example,SAAS_SETUP.md,DEPLOYMENT_GUIDE.md,README.md,dist/assets/*"
 
 # Redirects for SPA routing
 [[redirects]]
