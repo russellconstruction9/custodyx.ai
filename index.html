@@ -9,13 +9,25 @@
     <meta name="theme-color" content="#172554">
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
+      console.log('HTML loaded, starting app...');
+      
       // Add error logging to catch loading issues
       window.addEventListener('error', function(e) {
         console.error('Script error:', e.error, e.filename, e.lineno);
+        document.getElementById('root').innerHTML = 
+          '<div style="padding: 20px; text-align: center; background: #fee2e2; color: #dc2626;">' +
+          '<h2>JavaScript Error</h2>' +
+          '<p>' + e.error + '</p>' +
+          '<p>File: ' + e.filename + ' Line: ' + e.lineno + '</p>' +
+          '</div>';
       });
       
       window.addEventListener('unhandledrejection', function(e) {
         console.error('Unhandled promise rejection:', e.reason);
+      });
+      
+      window.addEventListener('load', function() {
+        console.log('Window loaded, React should be starting...');
       });
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -185,7 +197,14 @@
 
 </head>
   <body class="bg-gray-100 font-sans text-gray-900">
-    <div id="root"></div>
+    <div id="test-div" style="padding: 40px; text-align: center; background: #dbeafe; color: #1e40af; font-size: 24px;">
+      🧪 Static HTML Test - This should always be visible
+    </div>
+    <div id="root">
+      <div style="padding: 20px; text-align: center; background: #fef3c7; color: #92400e;">
+        🔄 Loading React... If this message persists, there may be a JavaScript error.
+      </div>
+    </div>
     <form name="onboarding" netlify netlify-honeypot="bot-field" hidden>
       <input type="text" name="name" />
       <input type="email" name="email" />
