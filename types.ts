@@ -41,9 +41,15 @@ export interface Theme {
 }
 
 export interface UserProfile {
+    id: string;
+    email: string;
     name: string;
-    role: 'Mother' | 'Father' | '';
-    children: string[];
+    role?: 'Mother' | 'Father' | '' | null;
+    children?: string[];
+    subscription_tier?: SubscriptionTier;
+    stripe_customer_id?: string | null;
+    created_at?: string;
+    updated_at?: string;
 }
 
 export interface CoParentMessage {

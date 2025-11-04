@@ -2,19 +2,38 @@ import React, { useState } from 'react'
 import { Auth } from '@supabase/auth-ui-react'
 import { ThemeSupa } from '@supabase/auth-ui-shared'
 import { supabase, signInWithGoogle } from '../../lib/supabase'
+import { useAuth } from './AuthProvider'
 
 interface AuthComponentProps {
+  children?: React.ReactNode
   redirectTo?: string
 }
 
-const AuthComponent: React.FC<AuthComponentProps> = ({ redirectTo = window.location.origin }) => {
-  const [view, setView] = useState<'sign_in' | 'sign_up'>('sign_in')
+const AuthComponent: React.FC<AuthComponentProps> = ({ children, redirectTo = window.location.origin }) => {
+  const { user, loading } = useAuth()
+  const [authView, setAuthView] = useState<'sign_in' | 'sign_up'>('sign_in')
+
+  // Show loading state
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
+  // If user is authenticated, render children
+  if (user) {
+    return <>{children}</>
+  }
+
+  // Otherwise show auth form
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
       <div className="sm:mx-auto sm:w-full sm:max-w-md">
         <h2 className="mt-6 text-center text-3xl font-bold tracking-tight text-gray-900">
-          {view === 'sign_in' ? 'Sign in to your account' : 'Create your account'}
+          {authView === 'sign_in' ? 'Sign in to your account' : 'Create your account'}
         </h2>
         <p className="mt-2 text-center text-sm text-gray-600">
           CustodyX.AI - Professional Co-Parenting Documentation
@@ -53,7 +72,7 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ redirectTo = window.locat
           <div className="mt-6">
             <Auth
               supabaseClient={supabase}
-              view={view}
+              view={authView}
               appearance={{
                 theme: ThemeSupa,
                 variables: {
@@ -81,10 +100,10 @@ const AuthComponent: React.FC<AuthComponentProps> = ({ redirectTo = window.locat
           {/* Toggle between sign in and sign up */}
           <div className="mt-6 text-center">
             <button
-              onClick={() => setView(view === 'sign_in' ? 'sign_up' : 'sign_in')}
+              onClick={() => setAuthView(authView === 'sign_in' ? 'sign_up' : 'sign_in')}
               className="text-sm text-blue-600 hover:text-blue-500"
             >
-              {view === 'sign_in' 
+              {authView === 'sign_in' 
                 ? "Don't have an account? Sign up" 
                 : "Already have an account? Sign in"
               }
