@@ -91,7 +91,32 @@ const AppContent = React.lazy(() =>
 const App: React.FC = () => {
   React.useEffect(() => {
     document.title = 'CustodyX.AI - Professional Co-Parenting Documentation';
+    
+    // Debug environment variables
+    console.log('Environment check:', {
+      supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+      hasSupabaseKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
+      nodeEnv: import.meta.env.NODE_ENV,
+      mode: import.meta.env.MODE
+    });
   }, []);
+
+  // Check if environment variables are missing and show error
+  if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-red-50">
+        <div className="bg-white p-8 rounded-lg shadow-lg max-w-md text-center">
+          <div className="text-red-500 text-4xl mb-4">❌</div>
+          <h2 className="text-xl font-bold text-gray-800 mb-2">Environment Variables Missing</h2>
+          <p className="text-gray-600 mb-4">
+            Supabase URL: {import.meta.env.VITE_SUPABASE_URL ? '✅' : '❌'}<br/>
+            Supabase Key: {import.meta.env.VITE_SUPABASE_ANON_KEY ? '✅' : '❌'}
+          </p>
+          <p className="text-sm text-gray-500">Check your .env file and restart the dev server</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <ErrorBoundary>
