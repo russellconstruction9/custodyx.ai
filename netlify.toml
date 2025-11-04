@@ -5,6 +5,8 @@
 
 [build.environment]
   NODE_VERSION = "18"
+  SECRETS_SCAN_OMIT_PATHS = ".env.example,SAAS_SETUP.md,DEPLOYMENT_GUIDE.md,README.md,dist/**"
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_APP_URL"
 
 # Redirects for SPA routing
 [[redirects]]
