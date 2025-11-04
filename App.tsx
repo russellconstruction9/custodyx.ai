@@ -1,7 +1,4 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { AuthProvider, useAuth } from './components/AuthContext';
-import LoginForm from './components/LoginForm';
-import SignupForm from './components/SignupForm';
 import Header from './components/Header';
 import Sidebar from './components/Sidebar';
 import IncidentTimeline from './components/IncidentTimeline';
@@ -25,9 +22,7 @@ import { Report, UserProfile as UserProfileType, StoredDocument, View, IncidentT
 import { TOKEN_LIMITS } from './constants';
 import { SparklesIcon } from './components/icons';
 
-// Authentication wrapper component
-const AuthenticatedApp: React.FC = () => {
-    const { user, isLoading, logout } = useAuth();
+const App: React.FC = () => {
     const [view, setView] = useState<View>('dashboard');
     
     const [reports, setReports] = useState<Report[]>(() => {
@@ -538,79 +533,6 @@ const AuthenticatedApp: React.FC = () => {
             />
         </div>
     );
-};
-
-// Login/Signup component
-const AuthForm: React.FC = () => {
-    const [isLogin, setIsLogin] = useState(true);
-    const { login, signup, isLoading, error, clearError } = useAuth();
-
-    const handleLogin = async (email: string, password: string) => {
-        clearError();
-        await login(email, password);
-    };
-
-    const handleSignup = async (
-        email: string, 
-        password: string, 
-        displayName: string, 
-        role: string, 
-        children: string[]
-    ) => {
-        clearError();
-        await signup(email, password, displayName, role, children);
-    };
-
-    return (
-        <>
-            {isLogin ? (
-                <LoginForm
-                    onLogin={handleLogin}
-                    onSwitchToSignup={() => setIsLogin(false)}
-                    isLoading={isLoading}
-                    error={error}
-                />
-            ) : (
-                <SignupForm
-                    onSignup={handleSignup}
-                    onSwitchToLogin={() => setIsLogin(true)}
-                    isLoading={isLoading}
-                    error={error}
-                />
-            )}
-        </>
-    );
-};
-
-// Main App component with authentication
-const App: React.FC = () => {
-    return (
-        <AuthProvider>
-            <AppContent />
-        </AuthProvider>
-    );
-};
-
-// App content with authentication checks
-const AppContent: React.FC = () => {
-    const { user, isLoading, isAuthenticated } = useAuth();
-
-    if (isLoading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gray-100">
-                <div className="text-center">
-                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
-                    <p className="mt-4 text-gray-600">Loading CustodyX.AI...</p>
-                </div>
-            </div>
-        );
-    }
-
-    if (!isAuthenticated) {
-        return <AuthForm />;
-    }
-
-    return <AuthenticatedApp />;
 };
 
 export default App;
