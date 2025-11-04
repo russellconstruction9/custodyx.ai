@@ -14,7 +14,14 @@
     "recharts": "^2.13.0",
     "react-markdown": "^10.1.0",
     "@netlify/functions": "^5.0.1",
-    "@google/genai": "^1.28.0"
+    "@google/genai": "^1.28.0",
+    "@supabase/supabase-js": "^2.39.0",
+    "@supabase/auth-ui-react": "^0.4.6",
+    "@supabase/auth-ui-shared": "^0.1.8",
+    "@stripe/stripe-js": "^2.4.0",
+    "react-hot-toast": "^2.4.1",
+    "react-query": "^3.39.3",
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
