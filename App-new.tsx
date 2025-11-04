@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { Toaster } from 'react-hot-toast';
 import { AuthProvider, useAuth, withAuth } from './components/auth/AuthProvider';
+import { QueryProvider } from './lib/react-query/QueryProvider';
 import { useAppStore } from './lib/store/appStore';
 
 // Import existing components
@@ -455,19 +456,21 @@ const ProtectedApp = withAuth(AppContent);
 // Root App Component with Providers
 const App: React.FC = () => {
     return (
-        <AuthProvider>
-            <Toaster
-                position="top-right"
-                toastOptions={{
-                    duration: 4000,
-                    style: {
-                        background: '#363636',
-                        color: '#fff',
-                    },
-                }}
-            />
-            <ProtectedApp />
-        </AuthProvider>
+        <QueryProvider>
+            <AuthProvider>
+                <Toaster
+                    position="top-right"
+                    toastOptions={{
+                        duration: 4000,
+                        style: {
+                            background: '#363636',
+                            color: '#fff',
+                        },
+                    }}
+                />
+                <ProtectedApp />
+            </AuthProvider>
+        </QueryProvider>
     );
 };
 
