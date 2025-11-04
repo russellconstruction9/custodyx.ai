@@ -36,9 +36,15 @@ export const profileApi = {
     if (!data) return null
 
     return {
+      id: data.id,
+      email: data.email,
       name: data.name,
       role: data.role as 'Mother' | 'Father' | '',
-      children: data.children || []
+      children: data.children || [],
+      subscription_tier: data.subscription_tier,
+      stripe_customer_id: data.stripe_customer_id,
+      created_at: data.created_at,
+      updated_at: data.updated_at
     }
   },
 
