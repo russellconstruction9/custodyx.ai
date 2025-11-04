@@ -129,7 +129,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   )
 }
 
-// HOC for protected routes
+// HOC for protected routes - simplified to avoid circular dependencies
 export const withAuth = <P extends object>(
   Component: React.ComponentType<P>
 ): React.FC<P> => {
@@ -145,12 +145,15 @@ export const withAuth = <P extends object>(
     }
 
     if (!user) {
-      return <AuthComponent />
+      return (
+        <div className="min-h-screen flex items-center justify-center">
+          <div className="text-center">
+            <p>Please sign in to continue</p>
+          </div>
+        </div>
+      )
     }
 
     return <Component {...props} />
   }
 }
-
-// Import AuthComponent (we'll need to adjust this import)
-const AuthComponent = React.lazy(() => import('./AuthComponent'))
