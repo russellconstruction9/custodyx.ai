@@ -92,9 +92,9 @@ const App: React.FC = () => {
   React.useEffect(() => {
     document.title = 'CustodyX.AI - Professional Co-Parenting Documentation';
     
-    // Debug environment variables
+    // Debug environment variables (without exposing values)
     console.log('Environment check:', {
-      supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
+      hasSupabaseUrl: !!import.meta.env.VITE_SUPABASE_URL,
       hasSupabaseKey: !!import.meta.env.VITE_SUPABASE_ANON_KEY,
       nodeEnv: import.meta.env.NODE_ENV,
       mode: import.meta.env.MODE

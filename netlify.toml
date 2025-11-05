@@ -5,7 +5,8 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  SECRETS_SCAN_ENABLED = "false"
+  # VITE_ prefixed variables are meant to be public/client-side
+  SECRETS_SCAN_OMIT_KEYS = "VITE_SUPABASE_URL,VITE_SUPABASE_ANON_KEY,VITE_STRIPE_PUBLISHABLE_KEY,VITE_APP_URL"
 
 # Redirects for SPA routing
 [[redirects]]

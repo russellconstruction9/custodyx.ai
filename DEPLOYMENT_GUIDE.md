@@ -26,19 +26,17 @@ git push origin main
 
 ### Environment Variables (Add in Netlify Dashboard)
 
-#### Required for Basic Functionality
+#### Client-Side Variables (Public - embedded in build)
 - `VITE_SUPABASE_URL` - Your Supabase project URL
-- `VITE_SUPABASE_ANON_KEY` - Your Supabase anonymous key
+- `VITE_SUPABASE_ANON_KEY` - Your Supabase anonymous key (safe to be public)
+- `VITE_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key (safe to be public)
 - `VITE_APP_URL` - Your Netlify app URL (e.g., https://yourapp.netlify.app)
 
-#### Required for AI Features
-- `GEMINI_API_KEY` - Server-side Gemini API key (for Netlify functions)
-
-#### Required for Payment Features
-- `VITE_STRIPE_PUBLISHABLE_KEY` - Stripe publishable key (client-side)
-- `STRIPE_SECRET_KEY` - Stripe secret key (server-side)
-- `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret
-- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (for server operations)
+#### Server-Side Variables (Private - only for Netlify functions)
+- `GEMINI_API_KEY` - Server-side Gemini API key (keep secret!)
+- `STRIPE_SECRET_KEY` - Stripe secret key (keep secret!)
+- `STRIPE_WEBHOOK_SECRET` - Stripe webhook signing secret (keep secret!)
+- `SUPABASE_SERVICE_ROLE_KEY` - Supabase service role key (keep secret!)
 
 ## 📝 Deployment Steps
 
