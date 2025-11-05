@@ -61,17 +61,17 @@ Create a `.env` file in your project root:
 ```env
 # Supabase
 VITE_SUPABASE_URL=https://your-project-id.supabase.co
-VITE_SUPABASE_ANON_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.replace-with-your-anon-key
-SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.replace-with-service-role-key
+VITE_SUPABASE_ANON_KEY=your_supabase_anon_key_here
+SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key_here
 
 # Google Gemini AI
-GEMINI_API_KEY=AIzaSy-Replace-With-Your-Gemini-API-Key
-VITE_GEMINI_API_KEY=AIzaSy-Replace-With-Your-Gemini-API-Key
+GEMINI_API_KEY=your_gemini_api_key_here
+VITE_GEMINI_API_KEY=your_gemini_api_key_here
 
 # Stripe
-VITE_STRIPE_PUBLISHABLE_KEY=pk_test_replace_with_your_publishable_key
-STRIPE_SECRET_KEY=sk_test_replace_with_your_secret_key
-STRIPE_WEBHOOK_SECRET=whsec_replace_with_your_webhook_secret
+VITE_STRIPE_PUBLISHABLE_KEY=your_stripe_publishable_key_here
+STRIPE_SECRET_KEY=your_stripe_secret_key_here
+STRIPE_WEBHOOK_SECRET=your_stripe_webhook_secret_here
 
 # App
 VITE_APP_URL=http://localhost:3000

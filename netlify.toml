@@ -5,8 +5,7 @@
 
 [build.environment]
   NODE_VERSION = "18"
-  # Configure secrets scanning to ignore documentation and example files
-  SECRETS_SCAN_OMIT_PATHS = ".env.example,SAAS_SETUP.md,DEPLOYMENT_GUIDE.md,README.md,dist/assets/*"
+  SECRETS_SCAN_OMIT_PATHS = ".env.example,SAAS_SETUP.md,DEPLOYMENT_GUIDE.md,README.md,docs/*"
 
 # Redirects for SPA routing
 [[redirects]]
