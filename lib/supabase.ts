@@ -4,8 +4,20 @@ import { Database } from './types/database.types'
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY
 
+// Debug logging
+console.log('Supabase Configuration:', {
+  url: supabaseUrl,
+  hasKey: !!supabaseAnonKey,
+  urlType: typeof supabaseUrl,
+  urlValid: supabaseUrl && supabaseUrl.startsWith('http')
+});
+
 if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Missing Supabase environment variables')
+  throw new Error(`Missing Supabase environment variables: URL=${!!supabaseUrl}, Key=${!!supabaseAnonKey}`)
+}
+
+if (!supabaseUrl.startsWith('http')) {
+  throw new Error(`Invalid Supabase URL format: ${supabaseUrl}`)
 }
 
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey, {
@@ -38,7 +50,7 @@ export const signInWithGoogle = () => {
   return supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/auth/callback`
+      redirectTo: `${import.meta.env.VITE_APP_URL}/auth/callback`
     }
   })
 }
